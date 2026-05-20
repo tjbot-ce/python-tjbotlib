@@ -24,13 +24,15 @@ This library supports both **local AI backends** (using sherpa-onnx for offline 
 
 ## System Dependencies
 
-Install the system camera package:
+Install required system packages:
 
 ```bash
-sudo apt-get install rpicam-apps-lite
+sudo apt-get update
+sudo apt-get install -y rpicam-apps-lite libasound2-dev
 ```
 
-> Note: This package is installed as part of TJBot's bootstrap script.
+> Note: `rpicam-apps-lite` is installed as part of TJBot's bootstrap script.
+> `libasound2-dev` is needed to build `pyalsaaudio` when syncing dependencies.
 
 ## Installation
 
@@ -132,7 +134,23 @@ tj.speak('TJBot is ready!')
 
 TJBot uses [TOML](https://toml.io/en/) for configuration. By default, it looks for `tjbot.toml` in the current working directory. Create this file to override the default settings.
 
-See `tjbot.default.toml` in the package for all available options.
+The shared canonical config assets live in `vendor/tjbot-config` (git submodule), matching `node-tjbotlib`:
+
+- `vendor/tjbot-config/tjbot-config.schema.yaml`
+- `vendor/tjbot-config/model-registry.yaml`
+- `vendor/tjbot-config/tjbot.default.toml`
+
+For packaging/runtime, these assets are synced into:
+
+- `src/tjbot/config/schema/tjbot-config.schema.yaml`
+- `src/tjbot/config/model-registry.yaml`
+- `src/tjbot/config/tjbot.default.toml`
+
+Run the sync command after updating the submodule:
+
+```bash
+python3 scripts/sync_config_schema.py
+```
 
 ## API Documentation
 
@@ -147,28 +165,56 @@ To contribute to the TJBot library:
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/ibmtjbot/python-tjbotlib.git
+    git clone --recurse-submodules https://github.com/ibmtjbot/python-tjbotlib.git
    cd python-tjbotlib
    ```
 
-2. **Install dependencies:**
+    If you already cloned without submodules:
+
+    ```bash
+    git submodule update --init --recursive
+    ```
+
+    This initializes shared configuration assets at `vendor/tjbot-config`.
+
+2. **Install dependencies with uv:**
 
    ```bash
-   pip install -e .[dev]
+    uv sync
    ```
 
 3. **Run tests:**
 
    ```bash
-   pytest
+    uv run pytest
    ```
 
 4. **Lint and format code:**
 
    ```bash
-   ruff check .
-   ruff format .
+    uv run ruff check .
+    uv run ruff format .
    ```
+
+### uv Quick Reference
+
+```bash
+# ensure project Python version (see .python-version)
+uv python install 3.11
+
+# sync default groups (includes dev via tool.uv.default-groups)
+uv sync
+
+# run commands inside the managed environment
+uv run pytest
+uv run mypy src
+
+# add a runtime dependency
+uv add <package>
+
+# add a development-only dependency
+uv add --group dev <package>
+```
 
 ## License
 

@@ -1,24 +1,32 @@
-from .models import (
-    TJBotConfigModel,
+from .config_types import (
+    TJBotConfigSchema,
     LogConfig,
     HardwareConfig,
     ListenConfig,
     SeeConfig,
+    SeeBackendConfig,
+    SeeBackendLocalConfig,
+    SeeBackendGoogleCloudConfig,
+    SeeBackendAzureConfig,
     ShineConfig,
     SpeakConfig,
     WaveConfig,
     STTBackendConfig,
     TTSBackendConfig,
 )
-from .config import TJBotConfig
+from .tjbot_config import TJBotConfig
 
 __all__ = [
     "TJBotConfig",
-    "TJBotConfigModel",
+    "TJBotConfigSchema",
     "LogConfig",
     "HardwareConfig",
     "ListenConfig",
     "SeeConfig",
+    "SeeBackendConfig",
+    "SeeBackendLocalConfig",
+    "SeeBackendGoogleCloudConfig",
+    "SeeBackendAzureConfig",
     "ShineConfig",
     "SpeakConfig",
     "WaveConfig",

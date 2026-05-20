@@ -18,6 +18,7 @@ limitations under the License.
 import shutil
 import subprocess
 import time
+import os
 from typing import Optional, List, Dict, Any
 
 # Try to import InquirerPy for better interactive prompts
@@ -25,6 +26,9 @@ try:
     from InquirerPy import inquirer
     HAS_INQUIRER = True
 except ImportError:
+    HAS_INQUIRER = False
+
+if os.getenv("TJBOT_LIVE_SIMPLE_PROMPTS") == "1":
     HAS_INQUIRER = False
 
 

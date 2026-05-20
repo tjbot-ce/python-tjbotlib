@@ -1,3 +1,3 @@
-from .microphone import MicrophoneController, MicrophoneStream
+from .microphone import MicrophoneController
 
-__all__ = ["MicrophoneController", "MicrophoneStream"]
+__all__ = ["MicrophoneController"]

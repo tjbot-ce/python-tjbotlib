@@ -1,18 +1,21 @@
 from enum import StrEnum
 
+
 class Capability(StrEnum):
     LISTEN = 'listen'
-    LOOK = 'look'
+    SEE = 'see'
     SHINE = 'shine'
     SPEAK = 'speak'
     WAVE = 'wave'
 
+
 class Hardware(StrEnum):
     CAMERA = 'camera'
-    LED_COMMON_ANODE = 'common_anode_led'
-    LED_NEOPIXEL = 'neopixel_led'
+    LED = 'led'
     MICROPHONE = 'microphone'
     SERVO = 'servo'
     SPEAKER = 'speaker'
+
+
 
 

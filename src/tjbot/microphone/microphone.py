@@ -1,151 +1,189 @@
-try:
-    import alsaaudio
-except ImportError:
-    alsaaudio = None
+import re
+import signal
+import subprocess
+from typing import Iterator, Optional
 
-import queue
-import threading
-from typing import Optional, Iterator
-from ..error import TJBotError
+from ..utils.errors import TJBotError
+from ..utils import is_command_available
+from ..utils.logging import LogEmoji, get_logger
 
-class MicrophoneStream:
-    """
-    Microphone stream that acts as an iterator or file-like object.
-    It captures audio from ALSA and yields chunks.
-    """
-    def __init__(self, rate: int, channels: int, chunk_size: int, device: str = 'default'):
-        self.rate = rate
-        self.channels = channels
-        self.chunk_size = chunk_size
-        self.device = device
-        self._buff = queue.Queue()
-        self.closed = True
-        self.pcm: Optional['alsaaudio.PCM'] = None
-        self._thread: Optional[threading.Thread] = None
+_logger = get_logger(__name__)
+_EMO = LogEmoji.MIC
 
-    def __enter__(self):
-        self.start()
-        return self
 
-    def __exit__(self, type, value, traceback):
-        self.stop()
+class _MicrophoneInputStream:
+    """Iterator/file-like adapter over the controller's live arecord stdout."""
 
-    def start(self):
-        if not self.closed:
-            return
+    def __init__(self, controller: "MicrophoneController"):
+        self._controller = controller
 
-        if not alsaaudio:
-            raise TJBotError("pyalsaaudio is not installed")
+    def __iter__(self) -> Iterator[bytes]:
+        bytes_per_sample = 2
+        chunk_bytes = self._controller._chunk_size * self._controller._channels * bytes_per_sample
 
-        self.closed = False
-
-        # Open ALSA PCM device for recording
-        self.pcm = alsaaudio.PCM(
-            type=alsaaudio.PCM_CAPTURE,
-            mode=alsaaudio.PCM_NORMAL,
-            device=self.device
-        )
-
-        # Set attributes
-        self.pcm.setchannels(self.channels)
-        self.pcm.setrate(self.rate)
-        self.pcm.setformat(alsaaudio.PCM_FORMAT_S16_LE)  # 16-bit signed little-endian
-        self.pcm.setperiodsize(self.chunk_size)
-
-        # Start capture thread
-        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self.closed = True
-        if self._thread:
-            self._thread.join(timeout=1.0)
-            self._thread = None
-        if self.pcm:
-            self.pcm.close()
-            self.pcm = None
-        # Signal end of stream
-        self._buff.put(None)
-
-    def _capture_loop(self):
-        """Background thread that continuously reads from ALSA"""
-        while not self.closed and self.pcm:
-            try:
-                # Read audio data
-                length, data = self.pcm.read()
-                if length > 0:
-                    self._buff.put(data)
-            except Exception as e:
-                if not self.closed:
-                    print(f"Error reading from microphone: {e}")
+        while self._controller._is_started and self._controller._mic_process:
+            process = self._controller._mic_process
+            if not process.stdout:
                 break
 
-    def generator(self) -> Iterator[bytes]:
-        while not self.closed:
-            chunk = self._buff.get()
-            if chunk is None:
-                return
+            chunk = process.stdout.read(chunk_bytes)
+            if not chunk:
+                break
+
+            _logger.debug("%s microphone received %d bytes", _EMO, len(chunk))
             yield chunk
 
     def read(self, size: int) -> bytes:
-        # File-like interface (blocking) - simplistic implementation
-        # Note: 'size' is usually ignored in streaming contexts or treated as max bytes
-        chunk = self._buff.get()
-        if chunk is None:
+        process = self._controller._mic_process
+        if not process or not process.stdout or not self._controller._is_started:
             return b""
-        return chunk
+
+        chunk = process.stdout.read(size)
+        return chunk or b""
 
 
 class MicrophoneController:
-    """
-    TJBot Microphone Controller.
-    """
+    """Microphone controller for TJBot."""
+
     def __init__(self):
-        self.rate = 16000
-        self.channels = 1
-        self.device = 'default'
-        self.stream: Optional[MicrophoneStream] = None
+        self._mic_process: Optional[subprocess.Popen[bytes]] = None
+        self._mic_input_stream = _MicrophoneInputStream(self)
+        self._is_started = False
+        self._is_paused = False
 
-    def initialize(self, rate: int = 16000, channels: int = 1, device_name: str = "") -> None:
-        self.rate = rate
-        self.channels = channels
+        self._rate = 16000
+        self._channels = 1
+        self._device = ""
+        self._chunk_size = 1024
 
-        if device_name:
-            # Use the device name directly for ALSA
-            self.device = device_name
+    def _detect_microphone_device(self) -> str:
+        """Auto-detect the first available audio recording device."""
+        if not is_command_available("arecord"):
+            _logger.warning("%s arecord command not found", _EMO)
+            return ""
+
+        try:
+            output = subprocess.check_output(["arecord", "-l"], text=True, stderr=subprocess.DEVNULL)
+        except Exception as error:
+            _logger.error("%s error detecting microphone device: %s", _EMO, error)
+            return ""
+
+        match = re.search(r"card\s+(\d+):.*device\s+(\d+):", output)
+        if not match:
+            _logger.warning("%s no audio capture devices found", _EMO)
+            return ""
+
+        card = match.group(1)
+        device = match.group(2)
+        device_string = f"plughw:{card},{device}"
+        _logger.debug("%s auto-detected microphone device: %s", _EMO, device_string)
+        return device_string
+
+    def initialize(
+        self,
+        rate: int,
+        channels: int,
+        device: Optional[str] = None,
+    ) -> None:
+        """Initialize microphone configuration (does not start recording)."""
+        self._rate = rate
+        self._channels = channels
+
+        if device and device != "":
+            self._device = device
+            _logger.debug("%s initializing microphone with user-defined audio device: %s", _EMO, device)
         else:
-            self.device = 'default'
+            selected_device = self._detect_microphone_device()
+            self._device = selected_device
+            _logger.debug("%s initializing microphone with auto-detected audio device: %s", _EMO, selected_device)
+
+        _logger.debug(
+            "%s initialized microphone with config: rate=%s channels=%s device=%s",
+            _EMO,
+            rate,
+            channels,
+            self._device,
+        )
 
     def start(self) -> None:
-        if self.stream and not self.stream.closed:
-            return # Already started
+        """Start microphone recording."""
+        if self._mic_process is not None and self._is_started and not self._is_paused:
+            return
 
-        self.stream = MicrophoneStream(
-            rate=self.rate,
-            channels=self.channels,
-            chunk_size=1024,
-            device=self.device
+        if self._mic_process is not None and self._is_started and self._is_paused:
+            self.resume()
+            return
+
+        if not is_command_available("arecord"):
+            raise TJBotError("arecord command not found. Install alsa-utils.")
+
+        cmd = [
+            "arecord",
+            "-q",
+            "-t",
+            "raw",
+            "-f",
+            "S16_LE",
+            "-r",
+            str(self._rate),
+            "-c",
+            str(self._channels),
+        ]
+
+        if self._device:
+            cmd.extend(["-D", self._device])
+
+        self._mic_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=0,
         )
-        self.stream.start()
-
-    def stop(self) -> None:
-        if self.stream:
-            self.stream.stop()
-            self.stream = None
+        self._is_started = True
+        self._is_paused = False
+        _logger.debug("%s microphone started", _EMO)
 
     def pause(self) -> None:
-        # ALSA doesn't have native pause/resume, so we stop/start
-        # For now, we'll just leave it running or implement stop/start
-        pass
+        """Pause microphone recording."""
+        if self._mic_process and self._mic_process.poll() is None and self._is_started and not self._is_paused:
+            self._mic_process.send_signal(signal.SIGSTOP)
+            self._is_paused = True
+            _logger.debug("%s microphone paused", _EMO)
 
     def resume(self) -> None:
-        # ALSA doesn't have native pause/resume
-        pass
+        """Resume microphone recording."""
+        if self._mic_process and self._mic_process.poll() is None and self._is_started and self._is_paused:
+            self._mic_process.send_signal(signal.SIGCONT)
+            self._is_paused = False
+            _logger.debug("%s microphone resumed", _EMO)
 
-    def get_input_stream(self) -> Iterator[bytes]:
-        """
-        Returns a generator yielding audio chunks.
-        """
-        if not self.stream:
-            raise TJBotError("Microphone not started")
-        return self.stream.generator()
+    def stop(self) -> None:
+        """Stop microphone recording."""
+        if not self._mic_process:
+            return
+
+        if self._mic_process.poll() is None:
+            self._mic_process.terminate()
+            try:
+                self._mic_process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                self._mic_process.kill()
+
+        if self._mic_process.stdout:
+            self._mic_process.stdout.close()
+
+        self._mic_process = None
+        self._is_started = False
+        self._is_paused = False
+        _logger.debug("%s microphone stopped", _EMO)
+
+    def get_input_stream(self) -> _MicrophoneInputStream:
+        """Get the microphone input stream."""
+        if not self._is_started:
+            self.start()
+        return self._mic_input_stream
+
+    def cleanup(self) -> None:
+        """Clean up resources."""
+        _logger.debug("%s MicrophoneController cleanup", _EMO)
+        self.stop()

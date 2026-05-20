@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""
-Interactive TJBot Text-to-Speech (TTS) Test
-
-This test validates TTS functionality with various backends.
-Note: This is a simplified version. Cloud backends require credentials.
-"""
+"""Interactive TJBot Text-to-Speech (TTS) Test."""
 
 import sys
 import os
+import re
 import signal
+import subprocess
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for script execution
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
 
 from tjbot import TJBot
+from tjbot.utils import ModelRegistry
+from tjbot.utils.sherpa_runtime import load_sherpa_onnx_module
 
 try:
     from .utils import (
@@ -54,35 +54,38 @@ def run_test():
         sys.exit(1)
     print("✓ aplay command available\n")
 
-    # Get backend choice
-    selected_backend = select_option(
-        "Select TTS backend",
-        [
-            {"name": "Local (Sherpa ONNX)", "value": "local"},
-            {"name": "IBM Watson", "value": "ibm-watson-tts"},
-            {"name": "Google Cloud", "value": "google-cloud-tts"},
-            {"name": "Azure", "value": "azure-tts"},
-        ],
-        default="local"
-    )
-
-    # Build speak config
-    speak_config = {
-        "backend": {
-            "type": selected_backend
-        }
-    }
+    selected_backend = prompt_backend_choice()
+    if selected_backend == "local":
+        verify_local_sherpa_runtime()
+    backend_config = prompt_backend_specific_options(selected_backend)
+    selected_output_device = prompt_output_device_choice()
+    speak_config = build_speak_config(selected_backend, backend_config, selected_output_device)
 
     print(format_section(f"Initializing TJBot with TTS ({selected_backend})"))
 
     # Instantiate TJBot with override configuration
     tjbot = TJBot({
         "log": {"level": "info"},
-        "hardware": {"speaker": True},
+        "hardware": {
+            "camera": False,
+            "led_common_anode": False,
+            "led_neopixel": False,
+            "microphone": False,
+            "servo": False,
+            "speaker": True,
+        },
         "speak": speak_config
     })
 
     print("✓ TJBot initialized")
+
+    smoke_mode = os.getenv("TJBOT_LIVE_SMOKE") == "1"
+    if smoke_mode:
+        smoke_text = os.getenv("TJBOT_LIVE_SMOKE_TEXT", "TJBot live TTS smoke test")
+        print(f"{COLORS['BRIGHT']}{COLORS['GREEN']}Speaking (smoke): {smoke_text}{COLORS['RESET']}")
+        tjbot.speak(smoke_text)
+        print("✓ Smoke mode: one-shot synthesis complete")
+        return
 
     print(format_section("Interactive test"))
     print("Enter text to speak. Press Ctrl+C to finish the test.")
@@ -119,6 +122,153 @@ def run_test():
         if not is_shutting_down:
             print(f"✗ TTS test failed: {error}")
             sys.exit(1)
+
+
+def list_alsa_output_devices() -> List[Dict[str, str]]:
+    try:
+        output = subprocess.check_output(["aplay", "-l"], text=True, stderr=subprocess.STDOUT)
+    except Exception:
+        return []
+
+    devices: List[Dict[str, str]] = []
+    pattern = re.compile(r"card\s+(\d+):.*?\[(.+?)\].*device\s+(\d+):.*?\[(.+?)\]")
+    for line in output.splitlines():
+        match = pattern.search(line)
+        if not match:
+            continue
+        card, card_name, device, device_name = match.groups()
+        value = f"plughw:{card},{device}"
+        name = f"Card {card}: {card_name} (Device {device}: {device_name})"
+        devices.append({"name": name, "value": value})
+
+    return devices
+
+
+def prompt_output_device_choice() -> Optional[str]:
+    devices = list_alsa_output_devices()
+    if len(devices) == 0:
+        print("ℹ️  No ALSA output devices found; using system default")
+        return None
+    if len(devices) == 1:
+        print(f"ℹ️  Using single ALSA output device: {devices[0]['name']}")
+        return devices[0]["value"]
+    return select_option("Select audio output device:", devices, default=devices[0]["value"])
+
+
+def prompt_backend_choice() -> str:
+    return select_option(
+        "Select a TTS backend to test:",
+        [
+            {"name": "Local (Sherpa ONNX)", "value": "local"},
+            {"name": "IBM Watson", "value": "ibm-watson-tts"},
+            {"name": "Google Cloud", "value": "google-cloud-tts"},
+            {"name": "Azure", "value": "azure-tts"},
+        ],
+        default="local",
+    )
+
+
+def prompt_backend_specific_options(selected_backend: str) -> Dict[str, Any]:
+    if selected_backend == "local":
+        return prompt_sherpa_onnx_tts_options()
+    if selected_backend == "ibm-watson-tts":
+        return prompt_ibm_watson_tts_options()
+    if selected_backend == "google-cloud-tts":
+        return prompt_google_cloud_tts_options()
+    if selected_backend == "azure-tts":
+        return prompt_azure_tts_options()
+    return {}
+
+
+def prompt_sherpa_onnx_tts_options() -> Dict[str, Any]:
+    registry = ModelRegistry.get_instance()
+    models = registry.lookup_models("tts", False)
+    if not models:
+        print("\nNo TTS models found in model registry; using backend defaults")
+        return {}
+
+    choices = []
+    for model in models:
+        downloaded = registry.is_model_downloaded(model.key)
+        status = "✓ downloaded" if downloaded else "✗ not downloaded"
+        choices.append({"name": f"{model.label or model.key} {status}", "value": model.key})
+
+    model_key = select_option("Select a Sherpa-ONNX TTS model:", choices, default=models[0].key)
+    return {"model": model_key}
+
+
+def prompt_ibm_watson_tts_options() -> Dict[str, Any]:
+    voice = select_option(
+        "Select IBM Watson voice:",
+        [
+            {"name": "Allison (US, Female)", "value": "en-US_AllisonV3Voice"},
+            {"name": "Michael (US, Male)", "value": "en-US_MichaelV3Voice"},
+            {"name": "Olivia (US, Female)", "value": "en-US_OliviaV3Voice"},
+        ],
+        default="en-US_AllisonV3Voice",
+    )
+    return {"voice": voice}
+
+
+def prompt_google_cloud_tts_options() -> Dict[str, Any]:
+    voice = select_option(
+        "Select Google Cloud voice:",
+        [
+            {"name": "en-US-Neural2-A", "value": "en-US-Neural2-A"},
+            {"name": "en-US-Neural2-C", "value": "en-US-Neural2-C"},
+            {"name": "en-US-Neural2-D", "value": "en-US-Neural2-D"},
+        ],
+        default="en-US-Neural2-A",
+    )
+    return {"voice": voice}
+
+
+def prompt_azure_tts_options() -> Dict[str, Any]:
+    voice_name = select_option(
+        "Select Azure voice:",
+        [
+            {"name": "Jenny", "value": "en-US-JennyNeural"},
+            {"name": "Guy", "value": "en-US-GuyNeural"},
+            {"name": "Aria", "value": "en-US-AriaNeural"},
+        ],
+        default="en-US-JennyNeural",
+    )
+    return {"voiceName": voice_name}
+
+
+def build_speak_config(selected_backend: str, backend_config: Dict[str, Any], selected_output_device: Optional[str]) -> Dict[str, Any]:
+    speak_config: Dict[str, Any] = {
+        "backend": {
+            "type": selected_backend,
+        }
+    }
+
+    if selected_output_device:
+        speak_config["device"] = selected_output_device
+
+    if selected_backend == "local":
+        speak_config["backend"]["local"] = backend_config
+    elif selected_backend == "ibm-watson-tts":
+        speak_config["backend"]["ibm-watson-tts"] = backend_config
+    elif selected_backend == "google-cloud-tts":
+        speak_config["backend"]["google-cloud-tts"] = backend_config
+    elif selected_backend == "azure-tts":
+        speak_config["backend"]["azure-tts"] = backend_config
+
+    return speak_config
+
+
+def verify_local_sherpa_runtime() -> None:
+    try:
+        load_sherpa_onnx_module()
+    except Exception as error:
+        print("✗ Local TTS backend requires a working sherpa_onnx runtime")
+        print(f"  Import error: {error}")
+        ld_library_path = os.getenv("LD_LIBRARY_PATH")
+        if ld_library_path:
+            print(f"  LD_LIBRARY_PATH={ld_library_path}")
+            print("  Hint: custom sherpa runtime libraries may be incompatible with installed package versions.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,95 @@
+[tasks.sync-config-schema]
+description = "Sync shared config assets from vendor/tjbot-config"
+run = "python3 scripts/sync_config_schema.py"
+
+[tasks.build]
+description = "Build prep for python-tjbotlib (sync shared config assets)"
+depends = ["sync-config-schema"]
+run = "echo 'Build prep complete: synced config schema/assets'"
+
+[tasks.prebuild]
+description = "Alias for build preparation"
+depends = ["build"]
+run = "echo 'Prebuild complete'"
+
+[tasks.lint]
+description = "Run lint checks"
+run = "uv run ruff check ."
+
+[tasks.lint-fix]
+description = "Run lint auto-fixes"
+run = "uv run ruff check . --fix"
+
+[tasks.format]
+description = "Format code"
+run = "uv run ruff format ."
+
+[tasks.format-check]
+description = "Check code formatting"
+run = "uv run ruff format . --check"
+
+[tasks.typecheck]
+description = "Run static type checking"
+run = "uv run mypy src"
+
+[tasks.markdownlint]
+description = "Lint markdown files (optional markdownlint-cli)"
+run = "if command -v markdownlint >/dev/null 2>&1; then markdownlint '**/*.md' --ignore .venv --ignore vendor; else echo 'markdownlint not installed; skipping'; fi"
+
+[tasks.markdownlint-fix]
+description = "Auto-fix markdown files (optional markdownlint-cli)"
+run = "if command -v markdownlint >/dev/null 2>&1; then markdownlint '**/*.md' --ignore .venv --ignore vendor --fix; else echo 'markdownlint not installed; skipping'; fi"
+
+[tasks.test]
+description = "Run core unit tests"
+depends = ["build"]
+run = "uv run pytest tests/core"
+
+[tasks.test-coverage]
+description = "Run tests with coverage"
+depends = ["build"]
+run = "uv run pytest tests/core --cov=src/tjbot --cov-report=term-missing"
+
+[tasks.test-camera]
+description = "Run live camera tests"
+run = "uv run python tests/live/test_camera.py"
+
+[tasks.test-led]
+description = "Run live LED tests"
+run = "uv run python tests/live/test_led.py"
+
+[tasks.test-microphone]
+description = "Run live microphone tests"
+run = "uv run python tests/live/test_microphone.py"
+
+[tasks.test-servo]
+description = "Run live servo tests"
+run = "uv run python tests/live/test_servo.py"
+
+[tasks.test-speaker]
+description = "Run live speaker tests"
+run = "uv run python tests/live/test_speaker.py"
+
+[tasks.test-stt]
+description = "Run live STT tests"
+run = "uv run python tests/live/test_stt.py"
+
+[tasks.test-tts]
+description = "Run live TTS tests"
+run = "uv run python tests/live/test_tts.py"
+
+[tasks.test-vision]
+description = "Run live vision tests"
+run = "uv run python tests/live/test_vision.py"
+
+[tasks.docs]
+description = "Generate docs if docs folder exists"
+run = "if [ -d ../tjbot-ce.github.io ]; then echo 'Docs repo found; add docs generation command here.'; else echo 'Skipping docs generation: ../tjbot-ce.github.io not found'; fi"
+
+[tasks.update-deps]
+description = "Check dependency updates"
+run = "uv lock --upgrade --dry-run"
+
+[tasks.upgrade-deps]
+description = "Upgrade dependencies and lockfile"
+run = "uv lock --upgrade"

@@ -1,5 +1,5 @@
 from .watson_stt import IBMWatsonSTTEngine
-from .google_stt import GoogleCloudSTTEngine
+from .google_cloud_stt import GoogleCloudSTTEngine
 from .azure_stt import AzureSTTEngine
 from .sherpa_onnx_stt import SherpaONNXSTTEngine
 

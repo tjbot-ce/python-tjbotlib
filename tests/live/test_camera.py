@@ -112,7 +112,7 @@ def run_test():
 
         # Test 3: Capture photo with default temp path
         print("\nTest 3: Capturing photo via CameraController (default temp path)")
-        temp_photo_path = camera.capture()
+        temp_photo_path = camera.capture_photo()
         print(f"Photo saved to: {temp_photo_path}")
 
         assert os.path.exists(temp_photo_path), "Photo file was not created at temp path"
@@ -121,17 +121,12 @@ def run_test():
         # Test 4: Capture photo with specified path
         print("\nTest 4: Capturing photo via CameraController (specified path)")
         specified_path = "/tmp/tjbot-controller-test.jpg"
-        specified_photo_path = camera.capture(specified_path)
+        specified_photo_path = camera.capture_photo(specified_path)
         print(f"Photo saved to: {specified_photo_path}")
 
         assert os.path.exists(specified_photo_path), "Photo file was not created at specified path"
         assert specified_photo_path == specified_path, "Photo path does not match requested path"
         print("✓ PASS - Photo file created at specified path")
-
-        # Test 5: Cleanup
-        print("\nTest 5: Cleaning up resources")
-        camera.cleanup()
-        print("✓ CameraController cleaned up")
 
         print(format_title("Camera Test Complete"))
         print("Note: Check the captured images to verify quality and settings.")

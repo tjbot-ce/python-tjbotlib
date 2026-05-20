@@ -1,5 +1,5 @@
 import pytest
-from tjbot.error import TJBotError
+from tjbot.utils.errors import TJBotError
 
 def test_tjbot_error_basic():
     err = TJBotError("Something went wrong")

@@ -1,13 +1,14 @@
 from typing import Optional
-import logging
 
 from .rpi_driver import RPiBaseHardwareDriver
-from ..config.models import LEDCommonAnodeConfig, LEDNeopixelConfig, WaveConfig
+from ..config.config_types import LEDCommonAnodeConfig, LEDNeopixelConfig, WaveConfig
 from ..utils import Hardware, convert_hex_to_rgb_color
 from ..led import LEDCommonAnode, LEDNeopixelSPI
-from ..servo import TJBotServo
+from ..servo import LGPIOServoController
+from ..utils.logging import LogEmoji, get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+EMO = LogEmoji.RPI
 
 class RPi5Driver(RPiBaseHardwareDriver):
     """
@@ -19,49 +20,60 @@ class RPi5Driver(RPiBaseHardwareDriver):
         super().__init__()
         self.common_anode_led: Optional[LEDCommonAnode] = None
         self.neopixel_led: Optional[LEDNeopixelSPI] = None
-        self.servo: Optional[TJBotServo] = None
-        logger.debug("Pie initializing RPi5 hardware driver")
+        self.servo: Optional[LGPIOServoController] = None
+        logger.debug("%s initializing RPi5 hardware driver", EMO)
 
     def setup_led_common_anode(self, config: LEDCommonAnodeConfig) -> None:
-        red_pin = config.redPin if config.redPin is not None else 19
-        green_pin = config.greenPin if config.greenPin is not None else 13
-        blue_pin = config.bluePin if config.bluePin is not None else 12
+        red_pin = config.red_pin if config.red_pin is not None else 19
+        green_pin = config.green_pin if config.green_pin is not None else 13
+        blue_pin = config.blue_pin if config.blue_pin is not None else 12
 
-        logger.debug(f"Initializing {Hardware.LED_COMMON_ANODE} on R:{red_pin} G:{green_pin} B:{blue_pin}")
+        logger.debug(
+            "%s initializing Common Anode LED on RED PIN %s, GREEN PIN %s, and BLUE PIN %s",
+            LogEmoji.LED,
+            red_pin,
+            green_pin,
+            blue_pin,
+        )
         self.common_anode_led = LEDCommonAnode(red_pin, green_pin, blue_pin)
-        self.initialized_hardware.add(Hardware.LED_COMMON_ANODE)
+        self.initialized_hardware.add(Hardware.LED)
 
     def setup_led_neopixel(self, config: LEDNeopixelConfig) -> None:
-        spi_interface = config.spiInterface or '/dev/spidev0.0'
-        use_grb = config.useGRBFormat or False
+        spi_interface = config.spi_interface if config.spi_interface is not None else "/dev/spidev0.0"
+        use_grb = config.use_grb_format if config.use_grb_format is not None else False
 
-        logger.debug(f"Initializing {Hardware.LED_NEOPIXEL} on SPI {spi_interface}")
+        logger.debug("%s initializing NeoPixel LED on SPI %s", LogEmoji.LED, spi_interface)
         self.neopixel_led = LEDNeopixelSPI(spi_interface, use_grb)
-        self.initialized_hardware.add(Hardware.LED_NEOPIXEL)
+        self.initialized_hardware.add(Hardware.LED)
 
     def setup_servo(self, config: WaveConfig) -> None:
-        pin = config.servoPin if config.servoPin is not None else 18
-        # gpioChip is handled by lgpio internals via gpiozero pin factory usually,
-        # but gpiozero defaults to chip 0 or 4 depending on Pi model.
-        # We assume gpiozero does the right thing with the pin number (BCM).
-
-        self.servo = TJBotServo(pin)
+        pin = config.servo_pin if config.servo_pin is not None else 18
+        logger.debug("%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin)
+        self.servo = LGPIOServoController(0, pin)
         self.initialized_hardware.add(Hardware.SERVO)
 
-    def render_led(self, hex_color: str) -> None:
-        if self.has_hardware(Hardware.LED_COMMON_ANODE) and self.common_anode_led:
-            rgb = convert_hex_to_rgb_color(hex_color)
-            self.common_anode_led.render(rgb)
+    def render_led_common_anode(self, rgb_color: tuple[int, int, int]) -> None:
+        if self.common_anode_led:
+            self.common_anode_led.render(rgb_color)
+        else:
+            logger.warning("%s attempted to render on an uninitialized Common Anode LED", LogEmoji.LED)
 
-        if self.has_hardware(Hardware.LED_NEOPIXEL) and self.neopixel_led:
+    def render_led_neopixel(self, hex_color: str) -> None:
+        if self.neopixel_led:
             self.neopixel_led.render(hex_color)
+        else:
+            logger.warning("%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED)
+
+    def render_led(self, hex_color: str) -> None:
+        if self.common_anode_led:
+            rgb = convert_hex_to_rgb_color(hex_color)
+            self.render_led_common_anode(rgb)
+
+        if self.neopixel_led:
+            self.render_led_neopixel(hex_color)
 
     def render_servo_position(self, position: int) -> None:
         if self.servo:
-            # Position is in microseconds (500-2500)
-            # TJBotServo expects milliseconds
-            pulse_ms = position / 1000.0
-            logger.debug(f"Setting servo position to {position} us ({pulse_ms} ms)")
-            self.servo.set_pulse_width(pulse_ms)
+            self.servo.set_position(position)
         else:
-            logger.warning("Attempted to render on an uninitialized servo")
+            logger.warning("%s attempted to render on an uninitialized servo", LogEmoji.SERVO)

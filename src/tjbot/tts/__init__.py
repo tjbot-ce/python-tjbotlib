@@ -1,4 +1,4 @@
 from .tts import TTSController
-from .engine import TTSEngine
+from .tts_engine import TTSEngine, create_tts_engine
 
-__all__ = ["TTSController", "TTSEngine"]
+__all__ = ["TTSController", "TTSEngine", "create_tts_engine"]

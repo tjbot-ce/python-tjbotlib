@@ -50,7 +50,7 @@ def run_test():
     print(format_section("Testing TJBot Wave API"))
 
     try:
-        print(f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servoPin}\n")
+        print(f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servo_pin}\n")
 
         # Test 1: Arm back
         print("Test 1: Moving arm to BACK position")

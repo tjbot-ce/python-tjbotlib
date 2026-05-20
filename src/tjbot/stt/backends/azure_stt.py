@@ -1,10 +1,11 @@
-from typing import Iterator, Callable, Optional
-import os
+from typing import Iterator, Optional
 import logging
 import threading
-from ..engine import STTEngine
-from ...config.models import AzureSTTConfig
-from ...error import TJBotError
+from ..stt_engine import STTEngine, STTRequestOptions
+from ..stt_utils import is_timeout_like_stream_end_reason, resolve_transcript_for_stream_end
+from ...config.config_types import STTBackendAzureConfig
+from ...utils.errors import TJBotError
+from ...utils.credentials import load_azure_credentials
 
 try:
     import azure.cognitiveservices.speech as speechsdk
@@ -13,57 +14,67 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _to_azure_cancellation_error(reason: str, details: str) -> TJBotError:
+    cancel_reason = f'{reason} - {details}'.strip()
+    timeout_like_end = is_timeout_like_stream_end_reason(cancel_reason)
+    if timeout_like_end:
+        return TJBotError('Azure STT: No speech could be recognized', code='stt.no-speech')
+    return TJBotError(f'Azure STT canceled: {cancel_reason}')
+
 class AzureSTTEngine(STTEngine):
     """
     Azure Cognitive Services Speech-to-Text backend.
     """
-    def __init__(self, config: Optional[AzureSTTConfig] = None):
+    def __init__(self, config: Optional[STTBackendAzureConfig] = None):
+        super().__init__(config or {})
         self.backend_config = config
         self.speech_config = None
-        self._initialize()
+        self.microphone_rate = 44100
+        self.microphone_channels = 2
 
-    def _initialize(self):
+    def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
         if speechsdk is None:
              raise TJBotError("azure-cognitiveservices-speech library not installed. Please install it.")
 
-        # Credentials mapping
-        # SDK expects AZURE_SPEECH_KEY and AZURE_SPEECH_REGION if provided via env,
-        # or we manually construct config.
+        self.microphone_rate = microphone_rate
+        self.microphone_channels = microphone_channels
 
-        region = self.backend_config.region if self.backend_config else None
-        key = self.backend_config.key if self.backend_config else None
-
-        # Fallback to env
-        if not key:
-            key = os.environ.get('AZURE_SPEECH_KEY')
-        if not region:
-            region = os.environ.get('AZURE_SPEECH_REGION')
+        credentials_path = getattr(self.backend_config, 'credentials_path', None) or ''
+        creds = load_azure_credentials(credentials_path)
+        key = creds.get('speechKey') or ''
+        region = creds.get('speechRegion') or ''
 
         if not key or not region:
-             raise TJBotError("Azure Speech credentials missing. Set 'key' and 'region' in config or env vars AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.")
+            raise TJBotError('Azure Speech credentials missing. Provide key and region in azure-credentials.env.')
 
         try:
             self.speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-            # Default language
             language = self.backend_config.language if self.backend_config else 'en-US'
             self.speech_config.speech_recognition_language = language
 
             logger.info("Azure STT initialized")
         except Exception as e:
             logger.error(f"Failed to initialize Azure STT: {e}")
+            raise TJBotError(f"Failed to initialize Azure STT: {e}")
 
-    def transcribe(
-        self,
-        audio_stream: Iterator[bytes],
-        on_partial_result: Optional[Callable[[str], None]] = None,
-        on_final_result: Optional[Callable[[str], None]] = None,
-        on_error: Optional[Callable[[Exception], None]] = None
-    ) -> str:
+    def transcribe(self, audio_stream: Iterator[bytes], options: Optional[STTRequestOptions] = None) -> str:
         if not self.speech_config:
              raise TJBotError("Azure STT not initialized.")
 
+        options = options or {}
+        abort_signal = options.get('abort_signal')
+        on_partial_result = options.get('on_partial_result')
+        on_final_result = options.get('on_final_result')
+
+        self.raise_if_aborted(options)
+
         # Handling streaming audio with Azure SDK is done via PushAudioInputStream
-        stream_format = speechsdk.audio.AudioStreamFormat(samples_per_second=16000, bits_per_sample=16, channels=1)
+        stream_format = speechsdk.audio.AudioStreamFormat(
+            samples_per_second=self.microphone_rate,
+            bits_per_sample=16,
+            channels=self.microphone_channels,
+        )
         push_stream = speechsdk.audio.PushAudioInputStream(stream_format=stream_format)
         audio_config = speechsdk.audio.AudioConfig(stream_input=push_stream)
 
@@ -72,10 +83,15 @@ class AzureSTTEngine(STTEngine):
         # Setup events
         done_event = threading.Event()
         final_transcript = []
+        latest_partial = ''
+        cancellation_reason: Optional[str] = None
+        cancellation_details: Optional[str] = None
 
         def processing_func():
             try:
                 for chunk in audio_stream:
+                    if self._is_abort_signal_set(abort_signal):
+                        break
                     push_stream.write(chunk)
             finally:
                 push_stream.close()
@@ -93,15 +109,18 @@ class AzureSTTEngine(STTEngine):
                     on_final_result(text)
 
         def recognizing_cb(evt):
+            nonlocal latest_partial
              if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
                  text = evt.result.text
+                 if text:
+                     latest_partial = text
                  if on_partial_result:
                      on_partial_result(text)
 
         def canceled_cb(evt):
-            if evt.reason == speechsdk.CancellationReason.Error:
-                if on_error:
-                    on_error(Exception(f"Azure Cancelled: {evt.error_details}"))
+            nonlocal cancellation_reason, cancellation_details
+            cancellation_reason = str(evt.reason)
+            cancellation_details = str(getattr(evt, 'error_details', '') or '')
             done_event.set()
 
         def session_stopped_cb(evt):
@@ -116,9 +135,47 @@ class AzureSTTEngine(STTEngine):
         recognizer.start_continuous_recognition()
 
         # Wait for done (which happens when stream closes/stops)
-        done_event.wait()
+        while not done_event.wait(0.1):
+            if self._is_abort_signal_set(abort_signal):
+                done_event.set()
+                break
 
         recognizer.stop_continuous_recognition()
         push_thread.join()
 
-        return " ".join(final_transcript)
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError('Azure STT transcription aborted', code='stt.aborted')
+
+        transcript = " ".join(final_transcript).strip()
+        if transcript:
+            return transcript
+
+        if cancellation_reason is not None:
+            fallback_transcript = resolve_transcript_for_stream_end(
+                transcript,
+                latest_partial,
+                allow_partial_on_timeout_like_end=True,
+                timeout_like_end=is_timeout_like_stream_end_reason(
+                    f'{cancellation_reason} - {cancellation_details or ""}'
+                ),
+            )
+            if fallback_transcript:
+                if on_final_result:
+                    on_final_result(fallback_transcript)
+                return fallback_transcript
+            raise _to_azure_cancellation_error(cancellation_reason, cancellation_details or '')
+
+        fallback_transcript = resolve_transcript_for_stream_end(
+            transcript,
+            latest_partial,
+            allow_partial_on_timeout_like_end=True,
+            timeout_like_end=True,
+        )
+        if fallback_transcript:
+            if on_final_result:
+                on_final_result(fallback_transcript)
+            return fallback_transcript
+
+        if not transcript:
+            raise TJBotError('Azure STT: No speech could be recognized', code='stt.no-speech')
+        return transcript

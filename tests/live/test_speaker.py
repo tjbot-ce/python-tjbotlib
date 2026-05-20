@@ -7,8 +7,11 @@ This test validates speaker/audio playback functionality.
 
 import sys
 import os
+import re
 import struct
 import math
+import subprocess
+from typing import Dict, List, Optional
 
 # Add parent directory to path for script execution
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
@@ -19,6 +22,7 @@ try:
         format_section,
         is_command_available,
         confirm_user,
+        select_option,
     )
 except ImportError:
     from utils import (
@@ -26,7 +30,38 @@ except ImportError:
         format_section,
         is_command_available,
         confirm_user,
+        select_option,
     )
+
+
+def list_alsa_output_devices() -> List[Dict[str, str]]:
+    try:
+        output = subprocess.check_output(['aplay', '-l'], text=True, stderr=subprocess.STDOUT)
+    except Exception:
+        return []
+
+    devices: List[Dict[str, str]] = []
+    pattern = re.compile(r'card\s+(\d+):.*?\[(.+?)\].*device\s+(\d+):.*?\[(.+?)\]')
+    for line in output.splitlines():
+        match = pattern.search(line)
+        if not match:
+            continue
+        card, card_name, device, device_name = match.groups()
+        value = f'plughw:{card},{device}'
+        name = f'Card {card}: {card_name} (Device {device}: {device_name})'
+        devices.append({'name': name, 'value': value})
+    return devices
+
+
+def prompt_device_choice() -> Optional[str]:
+    devices = list_alsa_output_devices()
+    if len(devices) == 0:
+        print('ℹ️  No ALSA output devices found; using system default')
+        return None
+    if len(devices) == 1:
+        print(f'ℹ️  Using single ALSA output device: {devices[0]["name"]}')
+        return devices[0]['value']
+    return select_option('Select audio output device:', devices, default=devices[0]['value'])
 
 
 def generate_test_wav(path: str, frequency: int = 440, duration: float = 1.0) -> None:
@@ -89,12 +124,14 @@ def run_test():
 
     print(format_section("Testing TJBot speaker"))
 
+    device = prompt_device_choice()
+
     # Import here to avoid import errors if dependencies missing
     from tjbot.speaker import SpeakerController
 
     # Create audio player directly to test playback
     speaker = SpeakerController()
-    speaker.initialize()
+    speaker.initialize(device or '')
     print("✓ Speaker initialized\n")
 
     try:
@@ -110,6 +147,13 @@ def run_test():
 
         result = confirm_user("Did you hear audio playback? (yes/no): ")
         print("✓ PASS" if result else "✗ FAIL")
+
+        # Clean up test audio file
+        try:
+            os.unlink(test_audio_path)
+            print("✓ Test audio file cleaned up")
+        except Exception as err:
+            print(f"Warning: Could not delete test audio file: {err}")
 
         print(format_title("Speaker Test Complete"))
 
