@@ -217,11 +217,36 @@ def prompt_sherpa_onnx_tts_options() -> Dict[str, Any]:
 
 def prompt_ibm_watson_tts_options() -> Dict[str, Any]:
     voice = select_option(
-        "Select IBM Watson voice:",
-        [
-            {"name": "Allison (US, Female)", "value": "en-US_AllisonV3Voice"},
-            {"name": "Michael (US, Male)", "value": "en-US_MichaelV3Voice"},
-            {"name": "Olivia (US, Female)", "value": "en-US_OliviaV3Voice"},
+        message="Select IBM Watson voice:",
+        choices=[
+            # Enhanced neural voices
+            {"name": "Allison (US, Female, Enhanced)", "value": "en-US_AllisonV3Voice"},
+            {"name": "Emily (US, Female, Enhanced)", "value": "en-US_EmilyV3Voice"},
+            {"name": "Henry (US, Male, Enhanced)", "value": "en-US_HenryV3Voice"},
+            {"name": "Kevin (US, Male, Enhanced)", "value": "en-US_KevinV3Voice"},
+            {"name": "Lisa (US, Female, Enhanced)", "value": "en-US_LisaV3Voice"},
+            {"name": "Michael (US, Male, Enhanced)", "value": "en-US_MichaelV3Voice"},
+            {"name": "Olivia (US, Female, Enhanced)", "value": "en-US_OliviaV3Voice"},
+            # Expressive neural voices
+            {
+                "name": "Allison (US, Female, Expressive)",
+                "value": "en-US_AllisonExpressive",
+            },
+            {"name": "Emma (US, Female, Expressive)", "value": "en-US_EmmaExpressive"},
+            {"name": "Lisa (US, Female, Expressive)", "value": "en-US_LisaExpressive"},
+            {
+                "name": "Michael (US, Male, Expressive)",
+                "value": "en-US_MichaelExpressive",
+            },
+            # Natural voices
+            {"name": "Ellie (US, Female, Natural)", "value": "en-US_EllieNatural"},
+            {"name": "Emma (US, Female, Natural)", "value": "en-US_EmmaNatural"},
+            {"name": "Ethan (US, Male, Natural)", "value": "en-US_EthanNatural"},
+            {"name": "Jackson (US, Male, Natural)", "value": "en-US_JacksonNatural"},
+            {
+                "name": "Victoria (US, Female, Natural)",
+                "value": "en-US_VictoriaNatural",
+            },
         ],
         default="en-US_AllisonV3Voice",
     )
@@ -230,11 +255,19 @@ def prompt_ibm_watson_tts_options() -> Dict[str, Any]:
 
 def prompt_google_cloud_tts_options() -> Dict[str, Any]:
     voice = select_option(
-        "Select Google Cloud voice:",
-        [
-            {"name": "en-US-Neural2-A", "value": "en-US-Neural2-A"},
-            {"name": "en-US-Neural2-C", "value": "en-US-Neural2-C"},
-            {"name": "en-US-Neural2-D", "value": "en-US-Neural2-D"},
+        message="Select Google Cloud voice:",
+        choices=[
+            {"name": "en-US-Neural2-A (US, Male)", "value": "en-US-Neural2-A"},
+            {"name": "en-US-Neural2-C (US, Female)", "value": "en-US-Neural2-C"},
+            {"name": "en-US-Neural2-D (US, Male)", "value": "en-US-Neural2-D"},
+            {"name": "en-US-Neural2-E (US, Female)", "value": "en-US-Neural2-E"},
+            {"name": "en-US-Neural2-F (US, Female)", "value": "en-US-Neural2-F"},
+            {"name": "en-US-Neural2-G (US, Female)", "value": "en-US-Neural2-G"},
+            {"name": "en-US-Neural2-H (US, Female)", "value": "en-US-Neural2-H"},
+            {"name": "en-US-Neural2-I (US, Male)", "value": "en-US-Neural2-I"},
+            {"name": "en-US-Neural2-J (US, Male)", "value": "en-US-Neural2-J"},
+            {"name": "en-US-Studio-O (US, Female)", "value": "en-US-Studio-O"},
+            {"name": "en-US-Studio-Q (US, Male)", "value": "en-US-Studio-Q"},
         ],
         default="en-US-Neural2-A",
     )
@@ -243,13 +276,24 @@ def prompt_google_cloud_tts_options() -> Dict[str, Any]:
 
 def prompt_azure_tts_options() -> Dict[str, Any]:
     voice_name = select_option(
-        "Select Azure voice:",
-        [
-            {"name": "Jenny", "value": "en-US-JennyNeural"},
-            {"name": "Guy", "value": "en-US-GuyNeural"},
-            {"name": "Aria", "value": "en-US-AriaNeural"},
+        message="Select Azure voice:",
+        choices=[
+            {"name": "Amber (US, Female)", "value": "en-US-AmberNeural"},
+            {"name": "Andrew (US, Male)", "value": "en-US-AndrewNeural"},
+            {"name": "Aria (US, Female)", "value": "en-US-AriaNeural"},
+            {"name": "Ashley (US, Female)", "value": "en-US-AshleyNeural"},
+            {"name": "Ava (US, Female)", "value": "en-US-AvaNeural"},
+            {"name": "Brian (US, Male)", "value": "en-US-BrianNeural"},
+            {"name": "Davis (US, Male)", "value": "en-US-DavisNeural"},
+            {"name": "Emma (US, Female)", "value": "en-US-EmmaNeural"},
+            {"name": "Guy (US, Male)", "value": "en-US-GuyNeural"},
+            {"name": "Jenny (US, Female)", "value": "en-US-JennyNeural"},
+            {"name": "Roger (US, Male)", "value": "en-US-RogerNeural"},
+            {"name": "Ryan (US, Male)", "value": "en-US-RyanNeural"},
+            {"name": "Steffan (US, Male)", "value": "en-US-SteffanNeural"},
+            {"name": "Zira (US, Female)", "value": "en-US-ZiraNeural"},
         ],
-        default="en-US-JennyNeural",
+        default="en-US-AmberNeural",
     )
     return {"voiceName": voice_name}
 

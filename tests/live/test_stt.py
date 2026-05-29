@@ -207,61 +207,99 @@ def prompt_sherpa_onnx_options() -> Dict[str, Any]:
 
 def prompt_ibm_watson_options() -> Dict[str, Any]:
     model = select_option(
-        "Select IBM Watson model:",
-        [
-            {"name": "Multimedia", "value": "en-US_Multimedia"},
-            {"name": "Telephony", "value": "en-US_Telephony"},
+        message="Select IBM Watson model:",
+        choices=[
+            {"name": "Multimedia (general audio)", "value": "en-US_Multimedia"},
+            {"name": "Telephony (phone/VoIP)", "value": "en-US_Telephony"},
             {"name": "Broadband", "value": "en-US_BroadbandModel"},
+            {"name": "Narrowband (8kHz)", "value": "en-US_ShortForm_NarrowbandModel"},
         ],
         default="en-US_Multimedia",
     )
-    return {"model": model}
+
+    noiseLevel = select_option(
+        message="Background audio suppression level (0=none, 1=max):",
+        choices=[
+            {"name": "None (0.0)", "value": 0.0},
+            {"name": "Low (0.3)", "value": 0.3},
+            {"name": "Medium (0.5)", "value": 0.5},
+            {"name": "High (0.8)", "value": 0.8},
+            {"name": "Maximum (1.0)", "value": 1.0},
+        ],
+        default=0.4,
+    )
+
+    return {
+        "model": model,
+        "backgroundAudioSuppression": noiseLevel,
+    }
 
 
 def prompt_google_cloud_options() -> Dict[str, Any]:
+    supported_regions_by_model = {
+        "chirp_3": [
+            {"name": "US (multi-region)", "value": "us"},
+            {"name": "EU (multi-region)", "value": "eu"},
+        ],
+        "chirp_2": [
+            {"name": "US Central 1", "value": "us-central1"},
+            {"name": "Europe West 4", "value": "europe-west4"},
+            {"name": "Asia Southeast 1", "value": "asia-southeast1"},
+        ],
+    }
+
     language_code = select_option(
         "Select language:",
         [
             {"name": "English (US)", "value": "en-US"},
             {"name": "English (GB)", "value": "en-GB"},
             {"name": "Spanish (Spain)", "value": "es-ES"},
+            {"name": "Spanish (Mexico)", "value": "es-MX"},
+            {"name": "French (France)", "value": "fr-FR"},
+            {"name": "German", "value": "de-DE"},
+            {"name": "Chinese (Mandarin)", "value": "zh-CN"},
+            {"name": "Japanese", "value": "ja-JP"},
+            {"name": "Korean", "value": "ko-KR"},
         ],
         default="en-US",
     )
-    model = select_option(
+
+    model_type = select_option(
         "Select model type:",
         [
-            {"name": "Chirp 3", "value": "chirp_3"},
-            {"name": "Chirp 2", "value": "chirp_2"},
+            {"name": "Chirp 3 (v2)", "value": "chirp_3"},
+            {"name": "Chirp 2 (v2)", "value": "chirp_2"},
         ],
         default="chirp_3",
     )
-    # Region options depend on model
-    chirp_3_regions = [
-        {"name": "US (us)", "value": "us"},
-        {"name": "EU (eu)", "value": "eu"},
-    ]
-    chirp_2_regions = [
-        {"name": "US Central (us-central1)", "value": "us-central1"},
-        {"name": "Europe West (europe-west4)", "value": "europe-west4"},
-        {"name": "Asia Southeast (asia-southeast1)", "value": "asia-southeast1"},
-    ]
-    region_choices = chirp_3_regions if model == "chirp_3" else chirp_2_regions
+
+    region_choices = supported_regions_by_model[model_type]
     region = select_option(
         "Select region:",
         region_choices,
         default=region_choices[0]["value"],
     )
-    return {"languageCode": language_code, "model": model, "region": region}
+
+    return {
+        "languageCode": language_code,
+        "model": model_type,
+        "region": region,
+    }
 
 
 def prompt_azure_options() -> Dict[str, Any]:
     language = select_option(
-        "Select Azure language:",
-        [
+        message="Select Azure language:",
+        choices=[
             {"name": "English (US)", "value": "en-US"},
             {"name": "English (GB)", "value": "en-GB"},
             {"name": "Spanish (Spain)", "value": "es-ES"},
+            {"name": "Spanish (Mexico)", "value": "es-MX"},
+            {"name": "French (France)", "value": "fr-FR"},
+            {"name": "German", "value": "de-DE"},
+            {"name": "Chinese (Mandarin)", "value": "zh-CN"},
+            {"name": "Japanese", "value": "ja-JP"},
+            {"name": "Korean", "value": "ko-KR"},
         ],
         default="en-US",
     )

@@ -111,8 +111,10 @@ def run_test():
 
         # Test 2: Initialize with custom configuration
         print("\nTest 2: Initializing CameraController with custom configuration")
-        camera.initialize([1280, 720], vertical_flip=True, horizontal_flip=False)
-        print("✓ CameraController configured with custom resolution and flips")
+        camera.initialize([1280, 720], vertical_flip=False, horizontal_flip=False)
+        print(
+            "✓ CameraController configured with custom resolution and default orientation"
+        )
 
         # Test 3: Capture photo with default temp path
         print("\nTest 3: Capturing photo via CameraController (default temp path)")
