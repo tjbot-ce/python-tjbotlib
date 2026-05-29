@@ -8,6 +8,7 @@ from ..utils.errors import TJBotError
 
 logger = logging.getLogger(__name__)
 
+
 class CameraController:
     """
     TJBot Camera Controller.
@@ -51,7 +52,9 @@ class CameraController:
             zero_shutter_lag,
         )
 
-    def build_camera_args(self, output_path: str, encoding: Optional[str] = None) -> list[str]:
+    def build_camera_args(
+        self, output_path: str, encoding: Optional[str] = None
+    ) -> list[str]:
         """
         Build rpicam-still command arguments.
         :param output_path: Output path or '-' for stdout.
@@ -109,7 +112,9 @@ class CameraController:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            logger.debug("rpicam-still stdout: %s", result.stdout.decode(errors="replace"))
+            logger.debug(
+                "rpicam-still stdout: %s", result.stdout.decode(errors="replace")
+            )
             return at_path
         except (subprocess.CalledProcessError, FileNotFoundError) as err:
             stderr = ""

@@ -26,7 +26,9 @@ class STTBackendLocalConfig(TJBotBaseModel):
 class STTBackendIBMWatsonConfig(TJBotBaseModel):
     model: Optional[str] = None
     inactivity_timeout: Optional[int] = Field(default=None, alias="inactivityTimeout")
-    background_audio_suppression: Optional[float] = Field(default=None, alias="backgroundAudioSuppression")
+    background_audio_suppression: Optional[float] = Field(
+        default=None, alias="backgroundAudioSuppression"
+    )
     interim_results: Optional[bool] = Field(default=None, alias="interimResults")
     credentials_path: Optional[str] = Field(default=None, alias="credentialsPath")
 
@@ -38,7 +40,9 @@ class STTBackendGoogleCloudConfig(TJBotBaseModel):
     encoding: Optional[str] = None
     sample_rate_hertz: Optional[int] = Field(default=None, alias="sampleRateHertz")
     audio_channel_count: Optional[int] = Field(default=None, alias="audioChannelCount")
-    enable_automatic_punctuation: Optional[bool] = Field(default=None, alias="enableAutomaticPunctuation")
+    enable_automatic_punctuation: Optional[bool] = Field(
+        default=None, alias="enableAutomaticPunctuation"
+    )
     interim_results: Optional[bool] = Field(default=None, alias="interimResults")
     region: Optional[str] = None
     profanity_filter: Optional[bool] = Field(default=None, alias="profanityFilter")
@@ -51,10 +55,16 @@ class STTBackendAzureConfig(TJBotBaseModel):
 
 
 class STTBackendConfig(TJBotBaseModel):
-    type: Optional[Literal['none', 'local', 'ibm-watson-stt', 'google-cloud-stt', 'azure-stt']] = 'local'
+    type: Optional[
+        Literal["none", "local", "ibm-watson-stt", "google-cloud-stt", "azure-stt"]
+    ] = "local"
     local: Optional[STTBackendLocalConfig] = None
-    ibm_watson_stt: Optional[STTBackendIBMWatsonConfig] = Field(default=None, alias="ibm-watson-stt")
-    google_cloud_stt: Optional[STTBackendGoogleCloudConfig] = Field(default=None, alias="google-cloud-stt")
+    ibm_watson_stt: Optional[STTBackendIBMWatsonConfig] = Field(
+        default=None, alias="ibm-watson-stt"
+    )
+    google_cloud_stt: Optional[STTBackendGoogleCloudConfig] = Field(
+        default=None, alias="google-cloud-stt"
+    )
     azure_stt: Optional[STTBackendAzureConfig] = Field(default=None, alias="azure-stt")
 
 
@@ -67,36 +77,66 @@ class ListenConfig(TJBotBaseModel):
 
 
 class SeeBackendLocalConfig(TJBotBaseModel):
-    object_detection_model: Optional[str] = Field(default=None, alias="objectDetectionModel")
-    image_classification_model: Optional[str] = Field(default=None, alias="imageClassificationModel")
-    face_detection_model: Optional[str] = Field(default=None, alias="faceDetectionModel")
-    object_detection_confidence: Optional[float] = Field(default=None, alias="objectDetectionConfidence")
-    image_classification_confidence: Optional[float] = Field(default=None, alias="imageClassificationConfidence")
-    face_detection_confidence: Optional[float] = Field(default=None, alias="faceDetectionConfidence")
+    object_detection_model: Optional[str] = Field(
+        default=None, alias="objectDetectionModel"
+    )
+    image_classification_model: Optional[str] = Field(
+        default=None, alias="imageClassificationModel"
+    )
+    face_detection_model: Optional[str] = Field(
+        default=None, alias="faceDetectionModel"
+    )
+    object_detection_confidence: Optional[float] = Field(
+        default=None, alias="objectDetectionConfidence"
+    )
+    image_classification_confidence: Optional[float] = Field(
+        default=None, alias="imageClassificationConfidence"
+    )
+    face_detection_confidence: Optional[float] = Field(
+        default=None, alias="faceDetectionConfidence"
+    )
 
 
 class SeeBackendGoogleCloudConfig(TJBotBaseModel):
     credentials_path: Optional[str] = Field(default=None, alias="credentialsPath")
-    object_detection_confidence: Optional[float] = Field(default=None, alias="objectDetectionConfidence")
-    image_classification_confidence: Optional[float] = Field(default=None, alias="imageClassificationConfidence")
-    face_detection_confidence: Optional[float] = Field(default=None, alias="faceDetectionConfidence")
+    object_detection_confidence: Optional[float] = Field(
+        default=None, alias="objectDetectionConfidence"
+    )
+    image_classification_confidence: Optional[float] = Field(
+        default=None, alias="imageClassificationConfidence"
+    )
+    face_detection_confidence: Optional[float] = Field(
+        default=None, alias="faceDetectionConfidence"
+    )
 
 
 class SeeBackendAzureConfig(TJBotBaseModel):
     credentials_path: Optional[str] = Field(default=None, alias="credentialsPath")
-    object_detection_confidence: Optional[float] = Field(default=None, alias="objectDetectionConfidence")
-    image_classification_confidence: Optional[float] = Field(default=None, alias="imageClassificationConfidence")
+    object_detection_confidence: Optional[float] = Field(
+        default=None, alias="objectDetectionConfidence"
+    )
+    image_classification_confidence: Optional[float] = Field(
+        default=None, alias="imageClassificationConfidence"
+    )
 
 
 class SeeBackendConfig(TJBotBaseModel):
-    type: Optional[Literal['none', 'local', 'google-cloud-vision', 'azure-vision']] = 'none'
+    type: Optional[Literal["none", "local", "google-cloud-vision", "azure-vision"]] = (
+        "none"
+    )
     local: Optional[SeeBackendLocalConfig] = None
-    google_cloud_vision: Optional[SeeBackendGoogleCloudConfig] = Field(default=None, alias="google-cloud-vision")
-    azure_vision: Optional[SeeBackendAzureConfig] = Field(default=None, alias="azure-vision")
+    google_cloud_vision: Optional[SeeBackendGoogleCloudConfig] = Field(
+        default=None, alias="google-cloud-vision"
+    )
+    azure_vision: Optional[SeeBackendAzureConfig] = Field(
+        default=None, alias="azure-vision"
+    )
 
 
 class SeeConfig(TJBotBaseModel):
-    camera_resolution: Optional[Tuple[int, int]] = Field(default=(1920, 1080), alias="cameraResolution")
+    camera_resolution: Optional[Tuple[int, int]] = Field(
+        default=(1920, 1080), alias="cameraResolution"
+    )
     vertical_flip: Optional[bool] = Field(default=False, alias="verticalFlip")
     horizontal_flip: Optional[bool] = Field(default=False, alias="horizontalFlip")
     capture_timeout: Optional[int] = Field(default=None, alias="captureTimeout")
@@ -118,9 +158,13 @@ class LEDCommonAnodeConfig(TJBotBaseModel):
 
 class ShineConfig(TJBotBaseModel):
     has_neopixel_led: Optional[bool] = Field(default=False, alias="hasNeopixelLED")
-    has_common_anode_led: Optional[bool] = Field(default=False, alias="hasCommonAnodeLED")
+    has_common_anode_led: Optional[bool] = Field(
+        default=False, alias="hasCommonAnodeLED"
+    )
     neopixel: Optional[LEDNeopixelConfig] = None
-    common_anode: Optional[LEDCommonAnodeConfig] = Field(default=None, alias="commonanode")
+    common_anode: Optional[LEDCommonAnodeConfig] = Field(
+        default=None, alias="commonanode"
+    )
 
 
 class TTSBackendLocalConfig(TJBotBaseModel):
@@ -145,10 +189,16 @@ class TTSBackendAzureConfig(TJBotBaseModel):
 
 
 class TTSBackendConfig(TJBotBaseModel):
-    type: Optional[Literal['none', 'local', 'ibm-watson-tts', 'google-cloud-tts', 'azure-tts']] = 'local'
+    type: Optional[
+        Literal["none", "local", "ibm-watson-tts", "google-cloud-tts", "azure-tts"]
+    ] = "local"
     local: Optional[TTSBackendLocalConfig] = None
-    ibm_watson_tts: Optional[TTSBackendIBMWatsonConfig] = Field(default=None, alias="ibm-watson-tts")
-    google_cloud_tts: Optional[TTSBackendGoogleCloudConfig] = Field(default=None, alias="google-cloud-tts")
+    ibm_watson_tts: Optional[TTSBackendIBMWatsonConfig] = Field(
+        default=None, alias="ibm-watson-tts"
+    )
+    google_cloud_tts: Optional[TTSBackendGoogleCloudConfig] = Field(
+        default=None, alias="google-cloud-tts"
+    )
     azure_tts: Optional[TTSBackendAzureConfig] = Field(default=None, alias="azure-tts")
 
 
@@ -166,8 +216,6 @@ class HardwareConfig(TJBotBaseModel):
     speaker: Optional[bool] = False
     microphone: Optional[bool] = False
     led: Optional[bool] = False
-    led_common_anode: Optional[bool] = False
-    led_neopixel: Optional[bool] = False
     servo: Optional[bool] = False
     camera: Optional[bool] = False
 

@@ -196,7 +196,9 @@ class LEDNeopixel:
         try:
             msg = json.loads(line)
         except json.JSONDecodeError:
-            _logger.warning("%s NeoPixel helper sent unparseable response: %s", _EMO, line)
+            _logger.warning(
+                "%s NeoPixel helper sent unparseable response: %s", _EMO, line
+            )
             return
 
         msg_id = msg.get("id")

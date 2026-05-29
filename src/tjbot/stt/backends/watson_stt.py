@@ -1,7 +1,10 @@
-from typing import Iterator, Optional
+from typing import Any, Iterable, Optional
 import logging
 from ..stt_engine import STTEngine, STTRequestOptions
-from ..stt_utils import is_timeout_like_stream_end_reason, resolve_transcript_for_stream_end
+from ..stt_utils import (
+    is_timeout_like_stream_end_reason,
+    resolve_transcript_for_stream_end,
+)
 from ...config.config_types import STTBackendIBMWatsonConfig
 from ...utils.errors import TJBotError
 from ...utils.credentials import load_ibm_watson_cloud_credentials
@@ -15,25 +18,27 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class IBMWatsonSTTEngine(STTEngine):
     """
     IBM Watson Speech-to-Text backend.
     """
+
     def __init__(self, config: Optional[STTBackendIBMWatsonConfig] = None):
-        super().__init__(config or {})
+        super().__init__(None)
         self.backend_config = config
-        self.service = None
+        self.service: Any = None
         self.microphone_rate = 44100
         self.microphone_channels = 2
 
     def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
         if SpeechToTextV1 is None:
-             raise TJBotError("ibm-watson library not installed. Please install it.")
+            raise TJBotError("ibm-watson library not installed. Please install it.")
 
         self.microphone_rate = microphone_rate
         self.microphone_channels = microphone_channels
 
-        credentials_path = getattr(self.backend_config, 'credentials_path', None) or ''
+        credentials_path = getattr(self.backend_config, "credentials_path", None) or ""
         load_ibm_watson_cloud_credentials(credentials_path)
 
         try:
@@ -41,31 +46,35 @@ class IBMWatsonSTTEngine(STTEngine):
             # Or if prompt was using IAMAuthenticator manually...
             # The simplest way with new SDK is let it auto-configure acting on env vars
             # Use authenticator if config has apikey
-            apikey = getattr(self.backend_config, 'apikey', None)
-            url = getattr(self.backend_config, 'url', None)
+            apikey = getattr(self.backend_config, "apikey", None)
+            url = getattr(self.backend_config, "url", None)
 
             if apikey:
-                 authenticator = IAMAuthenticator(apikey)
-                 self.service = SpeechToTextV1(authenticator=authenticator)
-                 if url:
-                     self.service.set_service_url(url)
+                authenticator = IAMAuthenticator(apikey)
+                self.service = SpeechToTextV1(authenticator=authenticator)
+                if url:
+                    self.service.set_service_url(url)
             else:
-                 # Auto-load from env/file
-                 self.service = SpeechToTextV1(authenticator=None) # SDK might raise if no creds found
+                # Auto-load from env/file
+                self.service = SpeechToTextV1(
+                    authenticator=None
+                )  # SDK might raise if no creds found
 
             logger.info("Watson STT initialized")
         except Exception as e:
             logger.error(f"Failed to initialize Watson STT: {e}")
             raise TJBotError(f"Failed to initialize Watson STT: {e}")
 
-    def transcribe(self, audio_stream: Iterator[bytes], options: Optional[STTRequestOptions] = None) -> str:
+    def transcribe(
+        self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
+    ) -> str:
         if not self.service:
-             raise TJBotError("Watson STT not initialized or credentials missing.")
+            raise TJBotError("Watson STT not initialized or credentials missing.")
 
         options = options or {}
-        abort_signal = options.get('abort_signal')
-        on_partial_result = options.get('on_partial_result')
-        on_final_result = options.get('on_final_result')
+        abort_signal = options.get("abort_signal")
+        on_partial_result = options.get("on_partial_result")
+        on_final_result = options.get("on_final_result")
 
         self.raise_if_aborted(options)
 
@@ -74,7 +83,9 @@ class IBMWatsonSTTEngine(STTEngine):
 
         # We need to map config to params
         # model, inactivity_timeout, etc.
-        model = self.backend_config.model if self.backend_config else 'en-US_BroadbandModel'
+        model = (
+            self.backend_config.model if self.backend_config else "en-US_BroadbandModel"
+        )
 
         # Audio source: generator
         # content_type: audio/l16; rate=...; channels=...
@@ -82,6 +93,7 @@ class IBMWatsonSTTEngine(STTEngine):
         content_type = f"audio/l16; rate={self.microphone_rate}; channels={self.microphone_channels}"
 
         try:
+
             class _RecognizeCallback:
                 def __init__(self, engine: "IBMWatsonSTTEngine"):
                     self._engine = engine
@@ -96,20 +108,20 @@ class IBMWatsonSTTEngine(STTEngine):
                     if not transcript:
                         return
 
-                    results = transcript.get('results')
+                    results = transcript.get("results")
                     if not results:
                         return
 
                     for result in results:
-                        alternatives = result.get('alternatives') or []
+                        alternatives = result.get("alternatives") or []
                         if not alternatives:
                             continue
 
-                        text = (alternatives[0].get('transcript') or '').strip()
+                        text = (alternatives[0].get("transcript") or "").strip()
                         if not text:
                             continue
 
-                        if result.get('final'):
+                        if result.get("final"):
                             self.final_parts.append(text)
                             if on_final_result:
                                 on_final_result(text)
@@ -149,14 +161,19 @@ class IBMWatsonSTTEngine(STTEngine):
                 content_type=content_type,
                 recognize_callback=callback,
                 model=model,
-                interim_results=True if on_partial_result else False
+                interim_results=True if on_partial_result else False,
             )
 
             if self._is_abort_signal_set(abort_signal):
-                raise TJBotError('IBM Watson STT transcription aborted', code='stt.aborted')
+                raise TJBotError(
+                    "IBM Watson STT transcription aborted", code="stt.aborted"
+                )
 
-            final_transcript = ' '.join(callback.final_parts).strip()
-            timeout_like_end = callback.timeout_like_end or is_timeout_like_stream_end_reason(callback.error_message)
+            final_transcript = " ".join(callback.final_parts).strip()
+            timeout_like_end = (
+                callback.timeout_like_end
+                or is_timeout_like_stream_end_reason(callback.error_message)
+            )
             transcript = resolve_transcript_for_stream_end(
                 final_transcript,
                 callback.latest_partial,
@@ -170,12 +187,20 @@ class IBMWatsonSTTEngine(STTEngine):
                 return transcript
 
             if callback.error_message and not timeout_like_end:
-                raise TJBotError('IBM Watson STT recognition failed', cause=RuntimeError(callback.error_message))
+                raise TJBotError(
+                    "IBM Watson STT recognition failed",
+                    cause=RuntimeError(callback.error_message),
+                )
 
             if timeout_like_end:
-                raise TJBotError('IBM Watson STT: No speech could be recognized', code='stt.no-speech')
+                raise TJBotError(
+                    "IBM Watson STT: No speech could be recognized",
+                    code="stt.no-speech",
+                )
 
-            raise TJBotError('IBM Watson STT: No speech could be recognized', code='stt.no-speech')
+            raise TJBotError(
+                "IBM Watson STT: No speech could be recognized", code="stt.no-speech"
+            )
 
         except Exception as e:
             logger.error(f"Watson STT Transcribe error: {e}")

@@ -16,7 +16,6 @@ limitations under the License.
 """
 
 import shutil
-import subprocess
 import time
 import os
 from typing import Optional, List, Dict, Any
@@ -24,6 +23,7 @@ from typing import Optional, List, Dict, Any
 # Try to import InquirerPy for better interactive prompts
 try:
     from InquirerPy import inquirer
+
     HAS_INQUIRER = True
 except ImportError:
     HAS_INQUIRER = False
@@ -82,7 +82,7 @@ def confirm_user(question: str) -> bool:
         return inquirer.confirm(message=question, default=True).execute()
 
     answer = prompt_user(question).lower()
-    return answer == '' or answer in ('yes', 'y')
+    return answer == "" or answer in ("yes", "y")
 
 
 def confirm(prompt: str) -> bool:
@@ -100,9 +100,9 @@ def confirm(prompt: str) -> bool:
 
     while True:
         response = input(f"{prompt} (y/n): ").strip().lower()
-        if response in ('y', 'yes'):
+        if response in ("y", "yes"):
             return True
-        elif response in ('n', 'no'):
+        elif response in ("n", "no"):
             return False
         print("Please answer 'y' or 'n'")
 
@@ -127,7 +127,9 @@ def prompt_input(message: str, default: str = "") -> str:
     return input(f"{message}: ").strip()
 
 
-def select_option(message: str, choices: List[Dict[str, Any]], default: Optional[Any] = None) -> Any:
+def select_option(
+    message: str, choices: List[Dict[str, Any]], default: Optional[Any] = None
+) -> Any:
     """
     Prompt user to select from a list of options
 
@@ -141,15 +143,13 @@ def select_option(message: str, choices: List[Dict[str, Any]], default: Optional
     """
     if HAS_INQUIRER:
         return inquirer.select(
-            message=message,
-            choices=choices,
-            default=default
+            message=message, choices=choices, default=default
         ).execute()
 
     # Fallback to simple numbered menu
     print(message)
     for i, choice in enumerate(choices, 1):
-        name = choice.get('name', choice.get('value', str(choice)))
+        name = choice.get("name", choice.get("value", str(choice)))
         print(f"  {i}. {name}")
 
     while True:
@@ -157,7 +157,7 @@ def select_option(message: str, choices: List[Dict[str, Any]], default: Optional
         try:
             idx = int(response) - 1
             if 0 <= idx < len(choices):
-                return choices[idx].get('value', choices[idx].get('name'))
+                return choices[idx].get("value", choices[idx].get("name"))
         except ValueError:
             pass
         print(f"Please enter a number between 1 and {len(choices)}")

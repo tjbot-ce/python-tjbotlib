@@ -61,11 +61,17 @@ def load_azure_credentials(provided_path: str = "") -> Dict[str, str]:
 
 
 def load_google_cloud_credentials(provided_path: str = "") -> Dict[str, str]:
-    credentials_path = resolve_credentials_path("google-credentials.json", provided_path)
+    credentials_path = resolve_credentials_path(
+        "google-credentials.json", provided_path
+    )
     if not Path(credentials_path).exists():
-        raise TJBotError(f"Google Cloud credentials file not found at: {credentials_path}")
+        raise TJBotError(
+            f"Google Cloud credentials file not found at: {credentials_path}"
+        )
 
-    _load_credentials_into_environment({"GOOGLE_APPLICATION_CREDENTIALS": credentials_path})
+    _load_credentials_into_environment(
+        {"GOOGLE_APPLICATION_CREDENTIALS": credentials_path}
+    )
     return {"credentialsPath": credentials_path}
 
 

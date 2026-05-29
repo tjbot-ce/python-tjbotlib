@@ -83,7 +83,7 @@ def init_logging(level: TJBotLogLevel = "info") -> None:
 
     package_logger = logging.getLogger(_PACKAGE_LOGGER)
     package_logger.setLevel(_to_python_log_level(level))
-    package_logger.propagate = False
+    package_logger.propagate = True
 
     if not _configured:
         handler = logging.StreamHandler()

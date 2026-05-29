@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Set, Any, Coroutine
-import asyncio
-import inspect
+from typing import Optional, Set, Any
 import logging
 
 from ..config.config_types import (
@@ -11,19 +9,19 @@ from ..config.config_types import (
     SpeakConfig,
     WaveConfig,
     LEDCommonAnodeConfig,
-    LEDNeopixelConfig
+    LEDNeopixelConfig,
 )
 from ..utils import Capability, Hardware, is_command_available
 from ..camera import CameraController
 from ..microphone import MicrophoneController
 from ..speaker import SpeakerController
 from ..stt import STTController
-from ..stt.stt_engine import STTRequestOptions
 from ..tts import TTSController
 from ..vision import VisionController
 from ..utils.errors import TJBotError
 
 logger = logging.getLogger(__name__)
+
 
 class RPiHardwareDriver(ABC):
     """
@@ -142,7 +140,9 @@ class RPiHardwareDriver(ABC):
         pass
 
     @abstractmethod
-    def listen_for_transcript(self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None) -> str:
+    def listen_for_transcript(
+        self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None
+    ) -> str:
         pass
 
     @abstractmethod
@@ -166,6 +166,7 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
     """
     Base implementation of RPi Hardware Driver.
     """
+
     def __init__(self):
         self.initialized_hardware: Set[str] = set()
 
@@ -207,10 +208,18 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
         self.see_config = config
         width = config.camera_resolution[0] if config.camera_resolution else 1920
         height = config.camera_resolution[1] if config.camera_resolution else 1080
+        capture_timeout = (
+            config.capture_timeout if config.capture_timeout is not None else 500
+        )
+        zero_shutter_lag = (
+            config.zero_shutter_lag if config.zero_shutter_lag is not None else False
+        )
         self.camera_controller.initialize(
             (width, height),
             config.vertical_flip or False,
-            config.horizontal_flip or False
+            config.horizontal_flip or False,
+            capture_timeout,
+            zero_shutter_lag,
         )
         self.initialized_hardware.add(Hardware.CAMERA)
 
@@ -220,7 +229,7 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
 
         rate = config.microphone_rate or 44100
         channels = config.microphone_channels or 2
-        device = config.device or ''
+        device = config.device or ""
 
         self.microphone_controller.initialize(rate, channels, device)
         self.initialized_hardware.add(Hardware.MICROPHONE)
@@ -235,18 +244,17 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
     def setup_speaker(self, config: SpeakConfig) -> None:
         self.speaker_controller = SpeakerController()
         self.speak_config = config
-        device = config.device or ''
+        device = config.device or ""
 
-        if not is_command_available('aplay'):
+        if not is_command_available("aplay"):
             raise TJBotError(
-                'TJBot requires the aplay command for audio playback. '
-                'Install it with: sudo apt-get install alsa-utils'
+                "TJBot requires the aplay command for audio playback. "
+                "Install it with: sudo apt-get install alsa-utils"
             )
 
         self.speaker_controller.initialize(device)
         self.speaker_controller.set_audio_lifecycle_callbacks(
-            lambda: self.pause_mic(),
-            lambda: self.resume_mic()
+            lambda: self.pause_mic(), lambda: self.resume_mic()
         )
         self.initialized_hardware.add(Hardware.SPEAKER)
 
@@ -255,7 +263,9 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
             raise TJBotError(
                 "Microphone controller not initialized. Call setup_microphone() before initializing STT."
             )
-        self.stt_controller = STTController(microphone_controller=self.microphone_controller)
+        self.stt_controller = STTController(
+            microphone_controller=self.microphone_controller
+        )
         self.stt_controller.initialize(self.listen_config or ListenConfig())
 
     def initialize_tts_engine(self) -> None:
@@ -264,15 +274,15 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
                 "Speaker controller not initialized. Call setup_speaker() before initializing TTS."
             )
         self.tts_controller = TTSController(self.speaker_controller)
-        asyncio.run(self.tts_controller.initialize(self.speak_config or SpeakConfig()))
+        self.tts_controller.initialize(self.speak_config or SpeakConfig())
 
     def initialize_vision_engine(self) -> None:
         self.vision_controller = VisionController()
-        asyncio.run(self.vision_controller.initialize(self.see_config or SeeConfig()))
+        self.vision_controller.initialize(self.see_config or SeeConfig())
 
     def capture_photo(self, file_path: Optional[str] = None) -> str:
         if not self.camera_controller:
-             raise TJBotError("Camera not initialized.")
+            raise TJBotError("Camera not initialized.")
         return self.camera_controller.capture_photo(file_path)
 
     def capture_photo_buffer(self) -> bytes:
@@ -282,23 +292,31 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
 
     def detect_objects(self, image: Any) -> Any:
         if self.vision_controller is None:
-            raise TJBotError("Vision controller is not initialized. Call setup_camera() before using vision.")
-        return asyncio.run(self.vision_controller.detect_objects(image))
+            raise TJBotError(
+                "Vision controller is not initialized. Call setup_camera() before using vision."
+            )
+        return self.vision_controller.detect_objects(image)
 
     def classify_image(self, image: Any) -> Any:
         if self.vision_controller is None:
-            raise TJBotError("Vision controller is not initialized. Call setup_camera() before using vision.")
-        return asyncio.run(self.vision_controller.classify_image(image))
+            raise TJBotError(
+                "Vision controller is not initialized. Call setup_camera() before using vision."
+            )
+        return self.vision_controller.classify_image(image)
 
     def detect_faces(self, image: Any) -> Any:
         if self.vision_controller is None:
-            raise TJBotError("Vision controller is not initialized. Call setup_camera() before using vision.")
-        return asyncio.run(self.vision_controller.detect_faces(image))
+            raise TJBotError(
+                "Vision controller is not initialized. Call setup_camera() before using vision."
+            )
+        return self.vision_controller.detect_faces(image)
 
     def describe_image(self, image: Any) -> Any:
         if self.vision_controller is None:
-            raise TJBotError("Vision controller is not initialized. Call setup_camera() before using vision.")
-        return asyncio.run(self.vision_controller.describe_image(image))
+            raise TJBotError(
+                "Vision controller is not initialized. Call setup_camera() before using vision."
+            )
+        return self.vision_controller.describe_image(image)
 
     def play_audio(self, file_path: str) -> None:
         if not self.speaker_controller:
@@ -307,18 +325,23 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
 
     def speak(self, message: str) -> None:
         if self.tts_controller is None:
-            raise TJBotError("TTS controller not initialized. Call setup_speaker() before speaking.")
-        asyncio.run(self.tts_controller.speak(message))
+            raise TJBotError(
+                "TTS controller not initialized. Call setup_speaker() before speaking."
+            )
+        self.tts_controller.speak(message)
 
-    def listen_for_transcript(self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None) -> str:
+    def listen_for_transcript(
+        self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None
+    ) -> str:
         if self.stt_controller is None:
-            raise TJBotError("STT controller not initialized. Call setup_microphone() before listening.")
+            raise TJBotError(
+                "STT controller not initialized. Call setup_microphone() before listening."
+            )
 
-        options = STTRequestOptions(
+        return self.stt_controller.transcribe(
             on_partial_result=on_partial,
             on_final_result=on_final,
-        )
-        return self.stt_controller.transcribe(options).strip()
+        ).strip()
 
     def start_mic(self) -> None:
         if self.microphone_controller is None:
@@ -352,21 +375,19 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
     def cleanup(self) -> None:
         """Clean up all controllers and reset hardware state."""
         for controller_attr in (
-            'camera_controller',
-            'microphone_controller',
-            'speaker_controller',
-            'stt_controller',
-            'tts_controller',
-            'vision_controller',
+            "camera_controller",
+            "microphone_controller",
+            "speaker_controller",
+            "stt_controller",
+            "tts_controller",
+            "vision_controller",
         ):
             controller = getattr(self, controller_attr, None)
             if controller is not None:
-                cleanup_fn = getattr(controller, 'cleanup', None)
+                cleanup_fn = getattr(controller, "cleanup", None)
                 if callable(cleanup_fn):
                     try:
-                        result = cleanup_fn()
-                        if inspect.isawaitable(result):
-                            asyncio.run(result)  # type: ignore[arg-type]
+                        cleanup_fn()
                     except Exception:
                         pass
                 setattr(self, controller_attr, None)

@@ -1,8 +1,8 @@
-
 class RPiDetect:
     """
     Detects Raspberry Pi model.
     """
+
     @staticmethod
     def model() -> str:
         """
@@ -13,7 +13,7 @@ class RPiDetect:
             with open("/proc/device-tree/model", "r") as f:
                 model = f.read().strip()
                 # Remove null bytes if any
-                return model.replace('\0', '')
+                return model.replace("\0", "")
         except FileNotFoundError:
             pass
 

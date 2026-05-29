@@ -9,7 +9,7 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 from tjbot.utils import ModelRegistry
@@ -34,10 +34,10 @@ except ImportError:
 
 # ANSI color codes
 COLORS = {
-    'RESET': '\033[0m',
-    'BRIGHT': '\033[1m',
-    'GREEN': '\033[32m',
-    'YELLOW': '\033[33m',
+    "RESET": "\033[0m",
+    "BRIGHT": "\033[1m",
+    "GREEN": "\033[32m",
+    "YELLOW": "\033[33m",
 }
 
 
@@ -59,30 +59,36 @@ def run_test():
         verify_local_sherpa_runtime()
     backend_config = prompt_backend_specific_options(selected_backend)
     selected_output_device = prompt_output_device_choice()
-    speak_config = build_speak_config(selected_backend, backend_config, selected_output_device)
+    speak_config = build_speak_config(
+        selected_backend, backend_config, selected_output_device
+    )
 
     print(format_section(f"Initializing TJBot with TTS ({selected_backend})"))
 
     # Instantiate TJBot with override configuration
-    tjbot = TJBot({
-        "log": {"level": "info"},
-        "hardware": {
-            "camera": False,
-            "led_common_anode": False,
-            "led_neopixel": False,
-            "microphone": False,
-            "servo": False,
-            "speaker": True,
-        },
-        "speak": speak_config
-    })
+    tjbot = TJBot(
+        {
+            "log": {"level": "info"},
+            "hardware": {
+                "camera": False,
+                "led_common_anode": False,
+                "led_neopixel": False,
+                "microphone": False,
+                "servo": False,
+                "speaker": True,
+            },
+            "speak": speak_config,
+        }
+    )
 
     print("✓ TJBot initialized")
 
     smoke_mode = os.getenv("TJBOT_LIVE_SMOKE") == "1"
     if smoke_mode:
         smoke_text = os.getenv("TJBOT_LIVE_SMOKE_TEXT", "TJBot live TTS smoke test")
-        print(f"{COLORS['BRIGHT']}{COLORS['GREEN']}Speaking (smoke): {smoke_text}{COLORS['RESET']}")
+        print(
+            f"{COLORS['BRIGHT']}{COLORS['GREEN']}Speaking (smoke): {smoke_text}{COLORS['RESET']}"
+        )
         tjbot.speak(smoke_text)
         print("✓ Smoke mode: one-shot synthesis complete")
         return
@@ -109,7 +115,9 @@ def run_test():
                 text = prompt_input("\nEnter text to speak (or Ctrl+C to exit)")
 
                 if text:
-                    print(f"{COLORS['BRIGHT']}{COLORS['GREEN']}Speaking: {text}{COLORS['RESET']}")
+                    print(
+                        f"{COLORS['BRIGHT']}{COLORS['GREEN']}Speaking: {text}{COLORS['RESET']}"
+                    )
                     tjbot.speak(text)
                     print("")
             except KeyboardInterrupt:
@@ -117,7 +125,9 @@ def run_test():
                 break
             except Exception as error:
                 if not is_shutting_down:
-                    print(f"{COLORS['YELLOW']}Error during synthesis: {error}{COLORS['RESET']}")
+                    print(
+                        f"{COLORS['YELLOW']}Error during synthesis: {error}{COLORS['RESET']}"
+                    )
     except Exception as error:
         if not is_shutting_down:
             print(f"✗ TTS test failed: {error}")
@@ -126,7 +136,9 @@ def run_test():
 
 def list_alsa_output_devices() -> List[Dict[str, str]]:
     try:
-        output = subprocess.check_output(["aplay", "-l"], text=True, stderr=subprocess.STDOUT)
+        output = subprocess.check_output(
+            ["aplay", "-l"], text=True, stderr=subprocess.STDOUT
+        )
     except Exception:
         return []
 
@@ -152,7 +164,9 @@ def prompt_output_device_choice() -> Optional[str]:
     if len(devices) == 1:
         print(f"ℹ️  Using single ALSA output device: {devices[0]['name']}")
         return devices[0]["value"]
-    return select_option("Select audio output device:", devices, default=devices[0]["value"])
+    return select_option(
+        "Select audio output device:", devices, default=devices[0]["value"]
+    )
 
 
 def prompt_backend_choice() -> str:
@@ -191,9 +205,13 @@ def prompt_sherpa_onnx_tts_options() -> Dict[str, Any]:
     for model in models:
         downloaded = registry.is_model_downloaded(model.key)
         status = "✓ downloaded" if downloaded else "✗ not downloaded"
-        choices.append({"name": f"{model.label or model.key} {status}", "value": model.key})
+        choices.append(
+            {"name": f"{model.label or model.key} {status}", "value": model.key}
+        )
 
-    model_key = select_option("Select a Sherpa-ONNX TTS model:", choices, default=models[0].key)
+    model_key = select_option(
+        "Select a Sherpa-ONNX TTS model:", choices, default=models[0].key
+    )
     return {"model": model_key}
 
 
@@ -236,7 +254,11 @@ def prompt_azure_tts_options() -> Dict[str, Any]:
     return {"voiceName": voice_name}
 
 
-def build_speak_config(selected_backend: str, backend_config: Dict[str, Any], selected_output_device: Optional[str]) -> Dict[str, Any]:
+def build_speak_config(
+    selected_backend: str,
+    backend_config: Dict[str, Any],
+    selected_output_device: Optional[str],
+) -> Dict[str, Any]:
     speak_config: Dict[str, Any] = {
         "backend": {
             "type": selected_backend,
@@ -267,10 +289,11 @@ def verify_local_sherpa_runtime() -> None:
         ld_library_path = os.getenv("LD_LIBRARY_PATH")
         if ld_library_path:
             print(f"  LD_LIBRARY_PATH={ld_library_path}")
-            print("  Hint: custom sherpa runtime libraries may be incompatible with installed package versions.")
+            print(
+                "  Hint: custom sherpa runtime libraries may be incompatible with installed package versions."
+            )
         sys.exit(1)
 
 
 if __name__ == "__main__":
     run_test()
-

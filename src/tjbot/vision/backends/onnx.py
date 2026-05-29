@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ...config.config_types import SeeBackendLocalConfig
 from ...utils.errors import TJBotError
@@ -15,25 +15,28 @@ from ..vision_engine import (
     VisionEngine,
 )
 
+np: Any = None
 try:
-    import numpy as np
+    import numpy as np  # type: ignore[assignment,no-redef]
 except ImportError:
-    np = None
+    pass
 
+ort: Any = None
 try:
-    import onnxruntime as ort
+    import onnxruntime as ort  # type: ignore[assignment,no-redef]
 except ImportError:
-    ort = None
+    pass
 
+Image: Any = None
 try:
-    from PIL import Image
+    from PIL import Image  # type: ignore[assignment,no-redef]
 except ImportError:
-    Image = None
+    pass
 
 
 @dataclass
 class LoadedModel:
-    session: object
+    session: Any
     labels: List[str]
     input_shape: List[int]
     kind: str
@@ -45,21 +48,29 @@ class ONNXVisionEngine(VisionEngine):
         self.manager = ModelRegistry.get_instance()
         self.models: Dict[str, LoadedModel] = {}
 
-    async def initialize(self) -> None:
+    def initialize(self) -> None:
         if ort is None or np is None or Image is None:
-            raise TJBotError('Local ONNX backend requires onnxruntime, numpy, and Pillow to be installed.')
+            raise TJBotError(
+                "Local ONNX backend requires onnxruntime, numpy, and Pillow to be installed."
+            )
 
         if not self.config:
-            raise TJBotError('ONNX vision engine requires local backend configuration.')
+            raise TJBotError("ONNX vision engine requires local backend configuration.")
 
         if not self.config.object_detection_model:
-            raise TJBotError('ONNX vision engine config is missing required parameter: objectDetectionModel')
+            raise TJBotError(
+                "ONNX vision engine config is missing required parameter: objectDetectionModel"
+            )
 
         if not self.config.image_classification_model:
-            raise TJBotError('ONNX vision engine config is missing required parameter: imageClassificationModel')
+            raise TJBotError(
+                "ONNX vision engine config is missing required parameter: imageClassificationModel"
+            )
 
         if not self.config.face_detection_model:
-            raise TJBotError('ONNX vision engine config is missing required parameter: faceDetectionModel')
+            raise TJBotError(
+                "ONNX vision engine config is missing required parameter: faceDetectionModel"
+            )
 
         self._load_model(self.config.object_detection_model)
         self._load_model(self.config.image_classification_model)
@@ -70,14 +81,22 @@ class ONNXVisionEngine(VisionEngine):
             return
 
         metadata = self.manager.load_model(model_name)
-        model_dir = self.manager.get_model_cache_dir_for_type(metadata.type) / metadata.folder
+        model_dir = (
+            self.manager.get_model_cache_dir_for_type(metadata.type) / metadata.folder
+        )
 
-        onnx_file = next((name for name in metadata.required if name.endswith('.onnx')), None)
+        onnx_file = next(
+            (name for name in metadata.required if name.endswith(".onnx")), None
+        )
         if not onnx_file:
-            raise TJBotError(f'No ONNX file found in model requirements for: {model_name}')
+            raise TJBotError(
+                f"No ONNX file found in model requirements for: {model_name}"
+            )
 
         model_path = model_dir / onnx_file
-        session = ort.InferenceSession(str(model_path), providers=['CPUExecutionProvider'])
+        session = ort.InferenceSession(
+            str(model_path), providers=["CPUExecutionProvider"]
+        )
 
         labels = self._load_labels(model_dir, metadata.kind)
 
@@ -86,22 +105,22 @@ class ONNXVisionEngine(VisionEngine):
             session=session,
             labels=labels,
             input_shape=input_shape,
-            kind=metadata.kind or '',
+            kind=metadata.kind or "",
         )
 
     def _load_labels(self, model_dir: Path, kind: Optional[str]) -> List[str]:
-        if kind == 'face-detection':
+        if kind == "face-detection":
             return []
 
         label_file = None
-        if kind == 'detection':
-            for name in ['classes.txt', 'coco.yaml', 'coco.names']:
+        if kind == "detection":
+            for name in ["classes.txt", "coco.yaml", "coco.names"]:
                 candidate = model_dir / name
                 if candidate.exists():
                     label_file = candidate
                     break
-        elif kind == 'classification':
-            for name in ['imagenet_classes.txt', 'labels.txt', 'classes.txt']:
+        elif kind == "classification":
+            for name in ["imagenet_classes.txt", "labels.txt", "classes.txt"]:
                 candidate = model_dir / name
                 if candidate.exists():
                     label_file = candidate
@@ -110,20 +129,26 @@ class ONNXVisionEngine(VisionEngine):
         if label_file is None:
             return []
 
-        content = label_file.read_text(encoding='utf-8')
-        if label_file.suffix == '.yaml' and kind == 'detection':
+        content = label_file.read_text(encoding="utf-8")
+        if label_file.suffix == ".yaml" and kind == "detection":
             # Simple YAML names extraction compatibility for common coco yaml format.
-            if 'names:' in content:
-                names_section = content.split('names:', 1)[1]
-                if '[' in names_section and ']' in names_section:
-                    inline = names_section[names_section.index('[') + 1 : names_section.index(']')]
-                    return [entry.strip().strip("'\"") for entry in inline.split(',') if entry.strip()]
+            if "names:" in content:
+                names_section = content.split("names:", 1)[1]
+                if "[" in names_section and "]" in names_section:
+                    inline = names_section[
+                        names_section.index("[") + 1 : names_section.index("]")
+                    ]
+                    return [
+                        entry.strip().strip("'\"")
+                        for entry in inline.split(",")
+                        if entry.strip()
+                    ]
 
             labels = []
             for line in names_section.splitlines():
                 line = line.strip()
-                if ':' in line:
-                    _, _, value = line.partition(':')
+                if ":" in line:
+                    _, _, value = line.partition(":")
                     value = value.strip().strip("'\"")
                     if value:
                         labels.append(value)
@@ -131,11 +156,11 @@ class ONNXVisionEngine(VisionEngine):
                 return labels
 
         labels = [line.strip() for line in content.splitlines() if line.strip()]
-        if labels and ':' in labels[0]:
+        if labels and ":" in labels[0]:
             normalized = []
             for line in labels:
-                if ':' in line:
-                    _, _, value = line.partition(':')
+                if ":" in line:
+                    _, _, value = line.partition(":")
                     normalized.append(value.strip())
                 else:
                     normalized.append(line)
@@ -145,7 +170,9 @@ class ONNXVisionEngine(VisionEngine):
 
     def _ensure_initialized(self):
         if not self.models:
-            raise TJBotError('ONNX vision engine not initialized. Call initialize() first.')
+            raise TJBotError(
+                "ONNX vision engine not initialized. Call initialize() first."
+            )
 
     def _get_model(self, model_name: str) -> LoadedModel:
         model = self.models.get(model_name)
@@ -153,13 +180,13 @@ class ONNXVisionEngine(VisionEngine):
             self._load_model(model_name)
             model = self.models.get(model_name)
         if not model:
-            raise TJBotError(f'Failed to load model: {model_name}')
+            raise TJBotError(f"Failed to load model: {model_name}")
         return model
 
     def _read_image(self, image: ImageInput):
         if isinstance(image, str):
-            return Image.open(image).convert('RGB')
-        return Image.open(__import__('io').BytesIO(image)).convert('RGB')
+            return Image.open(image).convert("RGB")
+        return Image.open(__import__("io").BytesIO(image)).convert("RGB")
 
     def _preprocess_image(self, image: ImageInput, size: Tuple[int, int]):
         img = self._read_image(image)
@@ -188,7 +215,11 @@ class ONNXVisionEngine(VisionEngine):
         denom = np.sum(exps)
         return exps / denom if denom else exps
 
-    def _calculate_iou(self, bbox1: Tuple[float, float, float, float], bbox2: Tuple[float, float, float, float]) -> float:
+    def _calculate_iou(
+        self,
+        bbox1: Tuple[float, float, float, float],
+        bbox2: Tuple[float, float, float, float],
+    ) -> float:
         x1, y1, w1, h1 = bbox1
         x2, y2, w2, h2 = bbox2
 
@@ -209,16 +240,20 @@ class ONNXVisionEngine(VisionEngine):
         union = (w1 * h1) + (w2 * h2) - inter
         return inter / union if union > 0 else 0.0
 
-    def _non_max_suppression(self, detections: List[ObjectDetectionResult], iou_threshold: float = 0.5):
+    def _non_max_suppression(
+        self, detections: List[ObjectDetectionResult], iou_threshold: float = 0.5
+    ):
         if not detections:
             return []
 
-        sorted_detections = sorted(detections, key=lambda d: d['confidence'], reverse=True)
+        sorted_detections = sorted(
+            detections, key=lambda d: d["confidence"], reverse=True
+        )
         kept: List[ObjectDetectionResult] = []
         for detection in sorted_detections:
             overlaps = False
             for existing in kept:
-                iou = self._calculate_iou(detection['bbox'], existing['bbox'])
+                iou = self._calculate_iou(detection["bbox"], existing["bbox"])
                 if iou > iou_threshold:
                     overlaps = True
                     break
@@ -226,21 +261,27 @@ class ONNXVisionEngine(VisionEngine):
                 kept.append(detection)
         return kept
 
-    def _postprocess_ssd_mobilenet_v2(self, outputs: Dict[str, object], labels: List[str], confidence_threshold: float):
-        box_scales = {'x': 10.0, 'y': 10.0, 'w': 5.0, 'h': 5.0}
+    def _postprocess_ssd_mobilenet_v2(
+        self, outputs: Dict[str, Any], labels: List[str], confidence_threshold: float
+    ):
+        box_scales = {"x": 10.0, "y": 10.0, "w": 5.0, "h": 5.0}
         feature_map_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2, 2), (1, 1)]
 
         anchors_by_layer = self._generate_ssd_mobilenet_v2_anchors(feature_map_shapes)
         detections: List[ObjectDetectionResult] = []
 
         for layer, (feat_h, feat_w) in enumerate(feature_map_shapes):
-            box_tensor = outputs.get(f'BoxPredictor_{layer}/BoxEncodingPredictor/BiasAdd:0')
-            class_tensor = outputs.get(f'BoxPredictor_{layer}/ClassPredictor/BiasAdd:0')
+            box_tensor = outputs.get(
+                f"BoxPredictor_{layer}/BoxEncodingPredictor/BiasAdd:0"
+            )
+            class_tensor = outputs.get(f"BoxPredictor_{layer}/ClassPredictor/BiasAdd:0")
             if box_tensor is None or class_tensor is None:
                 continue
 
             box_data = np.asarray(box_tensor).reshape(np.asarray(box_tensor).shape)
-            class_data = np.asarray(class_tensor).reshape(np.asarray(class_tensor).shape)
+            class_data = np.asarray(class_tensor).reshape(
+                np.asarray(class_tensor).shape
+            )
 
             _, box_channels, h, w = box_data.shape
             _, class_channels, _, _ = class_data.shape
@@ -254,7 +295,9 @@ class ONNXVisionEngine(VisionEngine):
                         anchor_idx = (y * w + x) * num_anchors_per_cell + a
                         anchor = anchors_by_layer[layer][anchor_idx]
 
-                        class_logits = np.zeros((num_classes_with_background,), dtype=np.float32)
+                        class_logits = np.zeros(
+                            (num_classes_with_background,), dtype=np.float32
+                        )
                         for c in range(num_classes_with_background):
                             class_channel = a * num_classes_with_background + c
                             class_logits[c] = class_data[0, class_channel, y, x]
@@ -276,10 +319,10 @@ class ONNXVisionEngine(VisionEngine):
                         th = float(box_data[0, a * 4 + 2, y, x])
                         tw = float(box_data[0, a * 4 + 3, y, x])
 
-                        y_center = (ty / box_scales['y']) * anchor['h'] + anchor['cy']
-                        x_center = (tx / box_scales['x']) * anchor['w'] + anchor['cx']
-                        box_h = math.exp(th / box_scales['h']) * anchor['h']
-                        box_w = math.exp(tw / box_scales['w']) * anchor['w']
+                        y_center = (ty / box_scales["y"]) * anchor["h"] + anchor["cy"]
+                        x_center = (tx / box_scales["x"]) * anchor["w"] + anchor["cx"]
+                        box_h = math.exp(th / box_scales["h"]) * anchor["h"]
+                        box_w = math.exp(tw / box_scales["w"]) * anchor["w"]
 
                         x_min = max(0.0, min(1.0, x_center - box_w / 2.0))
                         y_min = max(0.0, min(1.0, y_center - box_h / 2.0))
@@ -292,12 +335,16 @@ class ONNXVisionEngine(VisionEngine):
                             continue
 
                         label_idx = best_class - 1
-                        label = labels[label_idx] if 0 <= label_idx < len(labels) else f'class{label_idx}'
+                        label = (
+                            labels[label_idx]
+                            if 0 <= label_idx < len(labels)
+                            else f"class{label_idx}"
+                        )
                         detections.append(
                             {
-                                'label': label,
-                                'confidence': best_score,
-                                'bbox': (x_min, y_min, width, height),
+                                "label": label,
+                                "confidence": best_score,
+                                "bbox": (x_min, y_min, width, height),
                             }
                         )
 
@@ -312,38 +359,58 @@ class ONNXVisionEngine(VisionEngine):
         def scale_for_layer(layer: int) -> float:
             if len(feature_map_shapes) == 1:
                 return (min_scale + max_scale) * 0.5
-            return min_scale + ((max_scale - min_scale) * layer) / (len(feature_map_shapes) - 1)
+            return min_scale + ((max_scale - min_scale) * layer) / (
+                len(feature_map_shapes) - 1
+            )
 
         for layer, (feat_h, feat_w) in enumerate(feature_map_shapes):
             scale = scale_for_layer(layer)
-            next_scale = 1.0 if layer == len(feature_map_shapes) - 1 else scale_for_layer(layer + 1)
+            next_scale = (
+                1.0
+                if layer == len(feature_map_shapes) - 1
+                else scale_for_layer(layer + 1)
+            )
             layer_anchors = []
 
             anchor_sizes = []
             if layer == 0:
-                anchor_sizes.append({'w': 0.1, 'h': 0.1})
-                anchor_sizes.append({'w': scale * math.sqrt(2.0), 'h': scale / math.sqrt(2.0)})
-                anchor_sizes.append({'w': scale / math.sqrt(2.0), 'h': scale * math.sqrt(2.0)})
+                anchor_sizes.append({"w": 0.1, "h": 0.1})
+                anchor_sizes.append(
+                    {"w": scale * math.sqrt(2.0), "h": scale / math.sqrt(2.0)}
+                )
+                anchor_sizes.append(
+                    {"w": scale / math.sqrt(2.0), "h": scale * math.sqrt(2.0)}
+                )
             else:
                 for ratio in aspect_ratios:
                     ratio_sqrt = math.sqrt(ratio)
-                    anchor_sizes.append({'w': scale * ratio_sqrt, 'h': scale / ratio_sqrt})
+                    anchor_sizes.append(
+                        {"w": scale * ratio_sqrt, "h": scale / ratio_sqrt}
+                    )
                 interpolated = math.sqrt(scale * next_scale)
-                anchor_sizes.append({'w': interpolated, 'h': interpolated})
+                anchor_sizes.append({"w": interpolated, "h": interpolated})
 
             for y in range(feat_h):
                 for x in range(feat_w):
                     cy = (y + 0.5) / feat_h
                     cx = (x + 0.5) / feat_w
                     for size in anchor_sizes:
-                        layer_anchors.append({'cx': cx, 'cy': cy, 'w': size['w'], 'h': size['h']})
+                        layer_anchors.append(
+                            {"cx": cx, "cy": cy, "w": size["w"], "h": size["h"]}
+                        )
 
             anchors_by_layer.append(layer_anchors)
 
         return anchors_by_layer
 
-    def _postprocess_detection(self, outputs: Dict[str, object], labels: List[str], output_names: List[str], threshold: float):
-        if any('BoxPredictor_' in name for name in output_names):
+    def _postprocess_detection(
+        self,
+        outputs: Dict[str, Any],
+        labels: List[str],
+        output_names: List[str],
+        threshold: float,
+    ):
+        if any("BoxPredictor_" in name for name in output_names):
             return self._postprocess_ssd_mobilenet_v2(outputs, labels, threshold)
 
         output_name = output_names[0]
@@ -365,16 +432,28 @@ class ONNXVisionEngine(VisionEngine):
                     max_class_score = score
                     max_class_idx = j
 
-            label = labels[max_class_idx] if max_class_idx < len(labels) else f'class{max_class_idx}'
+            label = (
+                labels[max_class_idx]
+                if max_class_idx < len(labels)
+                else f"class{max_class_idx}"
+            )
             x = float(output_data[i])
             y = float(output_data[i + 1])
             w = float(output_data[i + 2])
             h = float(output_data[i + 3])
-            detections.append({'label': label, 'confidence': max_class_score, 'bbox': (x, y, w, h)})
+            detections.append(
+                {"label": label, "confidence": max_class_score, "bbox": (x, y, w, h)}
+            )
 
         return self._non_max_suppression(detections)
 
-    def _postprocess_classification(self, outputs: Dict[str, object], labels: List[str], threshold: float, output_names: List[str]):
+    def _postprocess_classification(
+        self,
+        outputs: Dict[str, Any],
+        labels: List[str],
+        threshold: float,
+        output_names: List[str],
+    ):
         logits = np.asarray(outputs[output_names[0]]).flatten()
         scores = self._softmax(logits)
         results: List[ImageClassificationResult] = []
@@ -383,10 +462,10 @@ class ONNXVisionEngine(VisionEngine):
             confidence = float(score)
             if confidence < threshold:
                 continue
-            label = labels[i] if i < len(labels) else f'class{i}'
-            results.append({'label': label, 'confidence': confidence})
+            label = labels[i] if i < len(labels) else f"class{i}"
+            results.append({"label": label, "confidence": confidence})
 
-        results.sort(key=lambda item: item['confidence'], reverse=True)
+        results.sort(key=lambda item: item["confidence"], reverse=True)
         return results
 
     def _compute_iou(self, box1, box2) -> float:
@@ -414,7 +493,7 @@ class ONNXVisionEngine(VisionEngine):
         if not faces:
             return []
 
-        sorted_faces = sorted(faces, key=lambda item: item['confidence'], reverse=True)
+        sorted_faces = sorted(faces, key=lambda item: item["confidence"], reverse=True)
         kept = []
         suppressed = [False] * len(sorted_faces)
 
@@ -425,26 +504,33 @@ class ONNXVisionEngine(VisionEngine):
             for j in range(i + 1, len(sorted_faces)):
                 if suppressed[j]:
                     continue
-                iou = self._compute_iou(sorted_faces[i]['boundingBox'], sorted_faces[j]['boundingBox'])
+                iou = self._compute_iou(
+                    sorted_faces[i]["boundingBox"], sorted_faces[j]["boundingBox"]
+                )
                 if iou > iou_threshold:
                     suppressed[j] = True
 
         return kept
 
-    def _postprocess_scrfd_face_detection(self, outputs: Dict[str, object], threshold: float, model_input_size: Tuple[int, int]):
+    def _postprocess_scrfd_face_detection(
+        self,
+        outputs: Dict[str, Any],
+        threshold: float,
+        model_input_size: Tuple[int, int],
+    ):
         model_width, model_height = model_input_size
         faces = []
 
         scales = [
-            {'stride': 8, 'scoreKey': '446', 'bboxKey': '449', 'kpsKey': '452'},
-            {'stride': 16, 'scoreKey': '466', 'bboxKey': '469', 'kpsKey': '472'},
-            {'stride': 32, 'scoreKey': '486', 'bboxKey': '489', 'kpsKey': '492'},
+            {"stride": 8, "scoreKey": "446", "bboxKey": "449", "kpsKey": "452"},
+            {"stride": 16, "scoreKey": "466", "bboxKey": "469", "kpsKey": "472"},
+            {"stride": 32, "scoreKey": "486", "bboxKey": "489", "kpsKey": "492"},
         ]
 
         for scale in scales:
-            score_tensor = outputs.get(scale['scoreKey'])
-            bbox_tensor = outputs.get(scale['bboxKey'])
-            kps_tensor = outputs.get(scale['kpsKey'])
+            score_tensor = outputs.get(scale["scoreKey"])
+            bbox_tensor = outputs.get(scale["bboxKey"])
+            kps_tensor = outputs.get(scale["kpsKey"])
 
             if score_tensor is None or bbox_tensor is None:
                 continue
@@ -453,7 +539,7 @@ class ONNXVisionEngine(VisionEngine):
             bboxes = np.asarray(bbox_tensor).flatten()
             kps = np.asarray(kps_tensor).flatten() if kps_tensor is not None else None
 
-            grid_size = int(model_width / scale['stride'])
+            grid_size = int(model_width / scale["stride"])
             num_anchors = 2
 
             for i, confidence in enumerate(scores):
@@ -464,13 +550,13 @@ class ONNXVisionEngine(VisionEngine):
                 anchor_index = i // num_anchors
                 grid_y = anchor_index // grid_size
                 grid_x = anchor_index % grid_size
-                anchor_x = (grid_x + 0.5) * scale['stride']
-                anchor_y = (grid_y + 0.5) * scale['stride']
+                anchor_x = (grid_x + 0.5) * scale["stride"]
+                anchor_y = (grid_y + 0.5) * scale["stride"]
 
-                left = float(bboxes[i * 4 + 0]) * scale['stride']
-                top = float(bboxes[i * 4 + 1]) * scale['stride']
-                right = float(bboxes[i * 4 + 2]) * scale['stride']
-                bottom = float(bboxes[i * 4 + 3]) * scale['stride']
+                left = float(bboxes[i * 4 + 0]) * scale["stride"]
+                top = float(bboxes[i * 4 + 1]) * scale["stride"]
+                right = float(bboxes[i * 4 + 2]) * scale["stride"]
+                bottom = float(bboxes[i * 4 + 3]) * scale["stride"]
 
                 x1 = max(0.0, anchor_x - left)
                 y1 = max(0.0, anchor_y - top)
@@ -484,51 +570,81 @@ class ONNXVisionEngine(VisionEngine):
 
                 landmarks = []
                 if kps is not None and len(kps) >= i * 10 + 10:
-                    landmark_types = ['eye-left', 'eye-right', 'nose', 'mouth-left', 'mouth-right']
+                    landmark_types = [
+                        "eye-left",
+                        "eye-right",
+                        "nose",
+                        "mouth-left",
+                        "mouth-right",
+                    ]
                     for j in range(5):
-                        kx = (float(kps[i * 10 + j * 2]) * scale['stride'] + anchor_x) / model_width
-                        ky = (float(kps[i * 10 + j * 2 + 1]) * scale['stride'] + anchor_y) / model_height
+                        kx = (
+                            float(kps[i * 10 + j * 2]) * scale["stride"] + anchor_x
+                        ) / model_width
+                        ky = (
+                            float(kps[i * 10 + j * 2 + 1]) * scale["stride"] + anchor_y
+                        ) / model_height
                         landmarks.append(
                             {
-                                'x': min(1.0, max(0.0, kx)),
-                                'y': min(1.0, max(0.0, ky)),
-                                'type': landmark_types[j],
+                                "x": min(1.0, max(0.0, kx)),
+                                "y": min(1.0, max(0.0, ky)),
+                                "type": landmark_types[j],
                             }
                         )
 
                 faces.append(
                     {
-                        'boundingBox': (x1 / model_width, y1 / model_height, box_w / model_width, box_h / model_height),
-                        'confidence': confidence,
-                        'landmarks': landmarks,
+                        "boundingBox": (
+                            x1 / model_width,
+                            y1 / model_height,
+                            box_w / model_width,
+                            box_h / model_height,
+                        ),
+                        "confidence": confidence,
+                        "landmarks": landmarks,
                     }
                 )
 
         return self._apply_face_nms(faces, 0.45)
 
-    def _postprocess_face_detection(self, outputs: Dict[str, object], threshold: float, model_input_size: Tuple[int, int]):
-        return self._postprocess_scrfd_face_detection(outputs, threshold, model_input_size)
+    def _postprocess_face_detection(
+        self,
+        outputs: Dict[str, Any],
+        threshold: float,
+        model_input_size: Tuple[int, int],
+    ):
+        return self._postprocess_scrfd_face_detection(
+            outputs, threshold, model_input_size
+        )
 
     def _get_object_detection_threshold(self) -> float:
         if not self.config or self.config.object_detection_confidence is None:
-            raise TJBotError('Object detection confidence threshold is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Object detection confidence threshold is not configured for ONNX vision engine"
+            )
         return float(self.config.object_detection_confidence)
 
     def _get_image_classification_threshold(self) -> float:
         if not self.config or self.config.image_classification_confidence is None:
-            raise TJBotError('Image classification confidence threshold is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Image classification confidence threshold is not configured for ONNX vision engine"
+            )
         return float(self.config.image_classification_confidence)
 
     def _get_face_detection_threshold(self) -> float:
         if not self.config or self.config.face_detection_confidence is None:
-            raise TJBotError('Face detection confidence threshold is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Face detection confidence threshold is not configured for ONNX vision engine"
+            )
         return float(self.config.face_detection_confidence)
 
-    async def detect_objects(self, image: ImageInput) -> List[ObjectDetectionResult]:
+    def detect_objects(self, image: ImageInput) -> List[ObjectDetectionResult]:
         self._ensure_initialized()
 
         if not self.config or not self.config.object_detection_model:
-            raise TJBotError('Object detection model is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Object detection model is not configured for ONNX vision engine"
+            )
 
         model = self._get_model(self.config.object_detection_model)
         _, _, height, width = model.input_shape
@@ -540,13 +656,17 @@ class ONNXVisionEngine(VisionEngine):
         output_map = {name: tensor for name, tensor in zip(output_names, outputs)}
 
         threshold = self._get_object_detection_threshold()
-        return self._postprocess_detection(output_map, model.labels, output_names, threshold)
+        return self._postprocess_detection(
+            output_map, model.labels, output_names, threshold
+        )
 
-    async def classify_image(self, image: ImageInput) -> List[ImageClassificationResult]:
+    def classify_image(self, image: ImageInput) -> List[ImageClassificationResult]:
         self._ensure_initialized()
 
         if not self.config or not self.config.image_classification_model:
-            raise TJBotError('Image classification model is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Image classification model is not configured for ONNX vision engine"
+            )
 
         model = self._get_model(self.config.image_classification_model)
         _, _, height, width = model.input_shape
@@ -558,13 +678,17 @@ class ONNXVisionEngine(VisionEngine):
         output_map = {name: tensor for name, tensor in zip(output_names, outputs)}
 
         threshold = self._get_image_classification_threshold()
-        return self._postprocess_classification(output_map, model.labels, threshold, output_names)
+        return self._postprocess_classification(
+            output_map, model.labels, threshold, output_names
+        )
 
-    async def detect_faces(self, image: ImageInput) -> FaceDetectionResult:
+    def detect_faces(self, image: ImageInput) -> FaceDetectionResult:
         self._ensure_initialized()
 
         if not self.config or not self.config.face_detection_model:
-            raise TJBotError('Face detection model is not configured for ONNX vision engine')
+            raise TJBotError(
+                "Face detection model is not configured for ONNX vision engine"
+            )
 
         model = self._get_model(self.config.face_detection_model)
         _, _, height, width = model.input_shape
@@ -576,9 +700,13 @@ class ONNXVisionEngine(VisionEngine):
         output_map = {name: tensor for name, tensor in zip(output_names, outputs)}
 
         threshold = self._get_face_detection_threshold()
-        metadata = self._postprocess_face_detection(output_map, threshold, (width, height))
-        return {'isFaceDetected': len(metadata) > 0, 'metadata': metadata}
+        metadata = self._postprocess_face_detection(
+            output_map, threshold, (width, height)
+        )
+        return {"isFaceDetected": len(metadata) > 0, "metadata": metadata}
 
-    async def describe_image(self, image: ImageInput) -> ImageDescriptionResult:
+    def describe_image(self, image: ImageInput) -> ImageDescriptionResult:
         _ = image
-        raise TJBotError('Image description is only supported by the Azure vision backend.')
+        raise TJBotError(
+            "Image description is only supported by the Azure vision backend."
+        )

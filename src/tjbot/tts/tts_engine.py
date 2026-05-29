@@ -1,70 +1,73 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 from ..config.config_types import SpeakConfig, TTSBackendConfig, TTSEngineConfig
 from ..utils.errors import TJBotError
 
 
 class TTSEngine(ABC):
-	"""Abstract base class for TTS engines."""
+    """Abstract base class for TTS engines."""
 
-	def __init__(self, config: TTSEngineConfig):
-		self.config = config
+    def __init__(self, config: TTSEngineConfig):
+        self.config = config
 
-	@abstractmethod
-	async def initialize(self) -> None:
-		"""Initialize the TTS engine. Must be called before synthesize()."""
-		pass
+    @abstractmethod
+    def initialize(self) -> None:
+        """Initialize the TTS engine. Must be called before synthesize()."""
+        pass
 
-	async def cleanup(self) -> None:
-		"""Release any resources held by this engine."""
-		return
+    def cleanup(self) -> None:
+        """Release any resources held by this engine."""
+        return
 
-	@abstractmethod
-	async def synthesize(self, text: str) -> bytes:
-		"""Synthesize text to WAV/PCM bytes."""
-		pass
+    @abstractmethod
+    def synthesize(self, text: str) -> bytes:
+        """Synthesize text to WAV/PCM bytes."""
+        pass
 
-	def validate_text(self, text: str) -> None:
-		if not text or not isinstance(text, str) or not text.strip():
-			raise TJBotError('Text input cannot be empty or whitespace-only')
+    def validate_text(self, text: str) -> None:
+        if not text or not isinstance(text, str) or not text.strip():
+            raise TJBotError("Text input cannot be empty or whitespace-only")
 
 
-async def create_tts_engine(speak_config: SpeakConfig) -> TTSEngine:
-	backend_config: TTSBackendConfig = speak_config.backend or TTSBackendConfig()
-	backend_type = backend_config.type or 'local'
+def create_tts_engine(speak_config: SpeakConfig) -> Optional[TTSEngine]:
+    backend_config: TTSBackendConfig = speak_config.backend or TTSBackendConfig()
+    backend_type = backend_config.type or "local"
 
-	if backend_type == 'none':
-		class NoneTTSEngine(TTSEngine):
-			async def initialize(self) -> None:
-				return
+    if backend_type == "none":
 
-			async def synthesize(self, text: str) -> bytes:
-				_ = text
-				raise TJBotError(
-					'TTS is disabled. Configure a text-to-speech backend (local, ibm-watson-tts, google-cloud-tts, or azure-tts) to use speech synthesis.'
-				)
+        class NoneTTSEngine(TTSEngine):
+            def initialize(self) -> None:
+                return
 
-		return NoneTTSEngine({})
+            def synthesize(self, text: str) -> bytes:
+                _ = text
+                raise TJBotError(
+                    "TTS is disabled. Configure a text-to-speech backend (local, ibm-watson-tts, google-cloud-tts, or azure-tts) to use speech synthesis."
+                )
 
-	if backend_type == 'ibm-watson-tts':
-		from .backends.ibm_watson_tts import IBMWatsonTTSEngine
+        return NoneTTSEngine({})
 
-		return IBMWatsonTTSEngine(backend_config.ibm_watson_tts)
+    if backend_type == "ibm-watson-tts":
+        from .backends.ibm_watson_tts import IBMWatsonTTSEngine
 
-	if backend_type == 'google-cloud-tts':
-		from .backends.google_cloud_tts import GoogleCloudTTSEngine
+        return IBMWatsonTTSEngine(backend_config.ibm_watson_tts)
 
-		return GoogleCloudTTSEngine(backend_config.google_cloud_tts)
+    if backend_type == "google-cloud-tts":
+        from .backends.google_cloud_tts import GoogleCloudTTSEngine
 
-	if backend_type == 'azure-tts':
-		from .backends.azure_tts import AzureTTSEngine
+        return GoogleCloudTTSEngine(backend_config.google_cloud_tts)
 
-		return AzureTTSEngine(backend_config.azure_tts)
+    if backend_type == "azure-tts":
+        from .backends.azure_tts import AzureTTSEngine
 
-	if backend_type == 'local':
-		from .backends.sherpa_onnx_tts import SherpaONNXTTSEngine
+        return AzureTTSEngine(backend_config.azure_tts)
 
-		return SherpaONNXTTSEngine(backend_config.local)
+    if backend_type == "local":
+        from .backends.sherpa_onnx_tts import SherpaONNXTTSEngine
 
-	raise TJBotError(f'Unknown TTS backend type: {backend_type}')
+        return SherpaONNXTTSEngine(backend_config.local)
+
+    return None
+
 
 __all__ = ["TTSEngine", "create_tts_engine"]

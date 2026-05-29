@@ -16,9 +16,13 @@ except ImportError:
 class LGPIOServoController:
     """Servo controller using lgpio on Raspberry Pi GPIO character devices."""
 
-    def __init__(self, chip_number: int, pin: int, freq: int = 50, auto_stop_delay_ms: int = 2000):
+    def __init__(
+        self, chip_number: int, pin: int, freq: int = 50, auto_stop_delay_ms: int = 2000
+    ):
         if lgpio is None:
-            raise ImportError("lgpio is required for servo control. Install it with: pip install rpi-lgpio")
+            raise ImportError(
+                "lgpio is required for servo control. Install it with: pip install rpi-lgpio"
+            )
 
         self.chip_number = chip_number
         self.pin = pin
@@ -78,20 +82,26 @@ class LGPIOServoController:
 
         if self.auto_stop_timer:
             self.auto_stop_timer.cancel()
-        self.auto_stop_timer = threading.Timer(self.auto_stop_delay_ms / 1000.0, self._auto_stop)
+        self.auto_stop_timer = threading.Timer(
+            self.auto_stop_delay_ms / 1000.0, self._auto_stop
+        )
         self.auto_stop_timer.daemon = True
         self.auto_stop_timer.start()
 
     def set_angle(self, angle: float) -> None:
         bounded_angle = max(0.0, min(180.0, angle))
-        pulse_ms = MIN_PULSE_MS + (bounded_angle / 180.0) * (MAX_PULSE_MS - MIN_PULSE_MS)
+        pulse_ms = MIN_PULSE_MS + (bounded_angle / 180.0) * (
+            MAX_PULSE_MS - MIN_PULSE_MS
+        )
         self.set_pulse_width(pulse_ms)
 
     def get_pulse_width(self) -> float:
         return self.current_pulse_ms
 
     def get_angle(self) -> int:
-        angle = ((self.current_pulse_ms - MIN_PULSE_MS) / (MAX_PULSE_MS - MIN_PULSE_MS)) * 180
+        angle = (
+            (self.current_pulse_ms - MIN_PULSE_MS) / (MAX_PULSE_MS - MIN_PULSE_MS)
+        ) * 180
         return round(angle)
 
     def is_running(self) -> bool:
@@ -126,5 +136,3 @@ class LGPIOServoController:
     def _auto_stop(self) -> None:
         logger.debug("ServoController auto-stopping after inactivity")
         self.stop()
-
-

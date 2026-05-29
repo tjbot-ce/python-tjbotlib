@@ -9,13 +9,13 @@ from .credentials import (
 from .model_registry import ModelMetadata, ModelRegistry
 from .logging import LogEmoji, get_logger, init_logging, set_log_level
 from .sherpa_runtime import load_sherpa_onnx_module
-from .utils import sleep, is_command_available, convert_hex_to_rgb_color, normalize_color, get_shine_colors
+from .colors import convert_hex_to_rgb_color, get_shine_colors, normalize_color
+from .utils import is_command_available, sleep
 
 __all__ = [
     "Capability",
     "Hardware",
     "TJBotError",
-
     "resolve_credentials_path",
     "load_azure_credentials",
     "load_google_cloud_credentials",
@@ -27,7 +27,6 @@ __all__ = [
     "init_logging",
     "set_log_level",
     "load_sherpa_onnx_module",
-
     "sleep",
     "is_command_available",
     "convert_hex_to_rgb_color",

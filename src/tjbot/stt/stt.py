@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from ..config.config_types import ListenConfig
 from ..utils.errors import TJBotError
@@ -39,21 +39,40 @@ class STTController:
 
     def transcribe(
         self,
-        options: Optional[STTRequestOptions] = None,
+        audio_stream: Optional[Iterable[bytes]] = None,
+        *,
+        on_partial_result=None,
+        on_final_result=None,
+        abort_signal=None,
     ) -> str:
         if self.config is None or self.engine is None:
-            raise TJBotError("STT engine not initialized. Call initialize() before transcribing.")
+            raise TJBotError(
+                "STT engine not initialized. Call initialize() before transcribing."
+            )
 
-        if self.microphone_controller is None:
-            raise TJBotError("Microphone controller is not available for STT transcription.")
-
-        options = options or {}
+        options: STTRequestOptions = {
+            "on_partial_result": on_partial_result,
+            "on_final_result": on_final_result,
+            "abort_signal": abort_signal,
+        }
 
         self.engine.raise_if_aborted(options)
 
+        # If caller supplies an audio stream, use it directly
+        if audio_stream is not None:
+            return self.engine.transcribe(audio_stream, options)
+
+        # Otherwise, use the microphone controller with retry on no-speech
+        if self.microphone_controller is None:
+            raise TJBotError(
+                "Microphone controller is not available for STT transcription."
+            )
+
         while True:
             self.microphone_controller.start()
-            active_stream: Iterator[bytes] = self.microphone_controller.get_input_stream()
+            active_stream: Iterable[bytes] = (
+                self.microphone_controller.get_input_stream()
+            )
 
             try:
                 transcript = self.engine.transcribe(active_stream, options)

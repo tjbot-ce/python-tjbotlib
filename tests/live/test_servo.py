@@ -9,7 +9,7 @@ import sys
 import os
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 
@@ -37,20 +37,22 @@ def run_test():
     gpio_input = prompt_user("Enter GPIO pin for servo (default: 18): ")
     servo_pin = 18 if gpio_input.strip() == "" else int(gpio_input.strip())
 
-    tjbot = TJBot({
-        "log": {"level": "info"},
-        "wave": {
-            "servoPin": servo_pin,
-        },
-        "hardware": {
-            "servo": True
+    tjbot = TJBot(
+        {
+            "log": {"level": "info"},
+            "wave": {
+                "servoPin": servo_pin,
+            },
+            "hardware": {"servo": True},
         }
-    })
+    )
 
     print(format_section("Testing TJBot Wave API"))
 
     try:
-        print(f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servo_pin}\n")
+        print(
+            f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servo_pin}\n"
+        )
 
         # Test 1: Arm back
         print("Test 1: Moving arm to BACK position")
@@ -89,4 +91,3 @@ def run_test():
 
 if __name__ == "__main__":
     run_test()
-

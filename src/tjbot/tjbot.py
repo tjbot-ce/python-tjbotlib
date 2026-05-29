@@ -4,23 +4,37 @@ import os
 import random
 import signal
 import threading
-import time
+from importlib.metadata import version, PackageNotFoundError
 from typing import Optional, Dict, Any, List, Union, Callable
-
-import webcolors
 
 from .config import TJBotConfig
 from .utils.errors import TJBotError
-from .utils import Hardware, Capability, ModelRegistry, get_logger, get_shine_colors, init_logging, normalize_color, set_log_level
+from .utils import (
+    Hardware,
+    Capability,
+    ModelRegistry,
+    get_logger,
+    get_shine_colors,
+    init_logging,
+    normalize_color,
+    sleep as tjbot_sleep,
+    set_log_level,
+)
 from .servo import ServoPosition
-from .rpi_drivers import RPiHardwareDriver, RPi3Driver, RPi4Driver, RPi5Driver, RPiDetect
+from .rpi_drivers import (
+    RPiHardwareDriver,
+    RPi3Driver,
+    RPi4Driver,
+    RPi5Driver,
+    RPiDetect,
+)
 from .stt.stt_utils import infer_stt_mode
 
 init_logging("info")
 logger = get_logger(__name__)
 
 
-_CAPABILITY_HARDWARE_MAP = {
+_CAPABILITY_HARDWARE_MAP: Dict[str, str] = {
     Capability.LISTEN: Hardware.MICROPHONE,
     Capability.SEE: Hardware.CAMERA,
     Capability.SHINE: Hardware.LED,
@@ -28,11 +42,17 @@ _CAPABILITY_HARDWARE_MAP = {
     Capability.WAVE: Hardware.SERVO,
 }
 
+
 class TJBot:
     """
     Class representing a TJBot.
     """
-    VERSION = "0.1.0"
+
+    try:
+        _pkg_version = version("python-tjbotlib")
+    except PackageNotFoundError:
+        _pkg_version = "0.0.0"
+    VERSION = f"v{_pkg_version}"
     Hardware = Hardware
     _instance: Optional["TJBot"] = None
 
@@ -42,6 +62,10 @@ class TJBot:
         recipe_config_path: str = "recipe.toml",
         auto_initialize: bool = True,
     ):
+        # Register as singleton if no instance exists yet
+        if TJBot._instance is None:
+            TJBot._instance = self
+
         self.config = TJBotConfig(override_config, recipe_config_path)
 
         # Configure logging
@@ -61,38 +85,32 @@ class TJBot:
         self.rpi_driver: Optional[RPiHardwareDriver] = None
 
         if auto_initialize:
-            self._initialize_sync(override_config, recipe_config_path)
+            self._initialize(override_config, recipe_config_path)
 
     @classmethod
     def get_instance(cls) -> "TJBot":
+        """Return the singleton TJBot instance, creating an uninitialized one if needed.
+        Call ``initialize()`` before using any TJBot capabilities."""
         if cls._instance is None:
             cls._instance = cls(auto_initialize=False)
         return cls._instance
 
     @classmethod
-    def get_recipe_config(cls, recipe_config_path: str = "recipe.toml") -> Dict[str, Any]:
+    def get_recipe_config(
+        cls, recipe_config_path: str = "recipe.toml"
+    ) -> Dict[str, Any]:
         config = TJBotConfig(recipe_config_path=recipe_config_path)
         return config.recipe
 
-    async def initialize(
+    def initialize(
         self,
         override_config: Optional[Dict[str, Any]] = None,
         recipe_config_path: str = "recipe.toml",
     ) -> "TJBot":
-        # Ensure lifecycle hooks are registered even when callers only use async initialize.
-        self._install_process_cleanup_hooks()
-        await asyncio.to_thread(self._initialize_sync, override_config, recipe_config_path)
+        self._initialize(override_config, recipe_config_path)
         return self
 
-    def initialize_sync(
-        self,
-        override_config: Optional[Dict[str, Any]] = None,
-        recipe_config_path: str = "recipe.toml",
-    ) -> "TJBot":
-        self._initialize_sync(override_config, recipe_config_path)
-        return self
-
-    def _initialize_sync(
+    def _initialize(
         self,
         override_config: Optional[Dict[str, Any]] = None,
         recipe_config_path: str = "recipe.toml",
@@ -152,8 +170,13 @@ class TJBot:
                 while self._cleanup_in_progress and self._cleanup_run_id == wait_run_id:
                     self._cleanup_condition.wait()
 
-                if self._cleanup_completed_run_id == wait_run_id and self._cleanup_error is not None:
-                    raise TJBotError("Failed to clean up TJBot resources", cause=self._cleanup_error)
+                if (
+                    self._cleanup_completed_run_id == wait_run_id
+                    and self._cleanup_error is not None
+                ):
+                    raise TJBotError(
+                        "Failed to clean up TJBot resources", cause=self._cleanup_error
+                    )
                 return
 
             self._cleanup_in_progress = True
@@ -173,7 +196,9 @@ class TJBot:
                 cleanup()
             self._initialized = False
         except Exception as error:
-            cleanup_error = error if isinstance(error, Exception) else Exception(str(error))
+            cleanup_error = (
+                error if isinstance(error, Exception) else Exception(str(error))
+            )
             raise TJBotError("Failed to clean up TJBot resources", cause=cleanup_error)
         finally:
             with self._cleanup_condition:
@@ -181,6 +206,8 @@ class TJBot:
                 self._cleanup_completed_run_id = run_id
                 self._cleanup_error = cleanup_error
                 self._cleanup_condition.notify_all()
+
+    _CLEANUP_TIMEOUT_S = 3.0
 
     def _install_process_cleanup_hooks(self) -> None:
         if self._process_hooks_installed:
@@ -199,9 +226,12 @@ class TJBot:
 
             previous = signal.getsignal(sig)
 
-            def _handler(signum, frame, prev=previous):
+            def _handler(signum, frame, prev=previous, _sig_name=sig_name):
                 _ = frame
-                self._run_lifecycle_cleanup()
+                exit_code = {"SIGINT": 130, "SIGTERM": 143, "SIGHUP": 129}.get(
+                    _sig_name, 1
+                )
+                self._run_lifecycle_cleanup(exit_code=exit_code)
                 if callable(prev):
                     prev(signum, frame)
 
@@ -209,13 +239,44 @@ class TJBot:
 
         self._process_hooks_installed = True
 
-    def _run_lifecycle_cleanup(self) -> None:
-        try:
-            self.cleanup()
-        except Exception as error:
-            logger.warning("TJBot lifecycle cleanup failed: %s", error)
+    def _run_lifecycle_cleanup(self, exit_code: Optional[int] = None) -> None:
+        """
+        Best-effort cleanup path used by process lifecycle hooks.
+
+        When called from a signal handler (exit_code is set), cleanup runs in a
+        background thread and is given at most _CLEANUP_TIMEOUT_S seconds before
+        the process is force-exited — matching Node's Promise.race approach.
+
+        When called from atexit (exit_code is None), cleanup runs inline so the
+        process drains fully before exiting.
+        """
+        if exit_code is None:
+            # atexit: run inline, best-effort
+            try:
+                self.cleanup()
+            except Exception as error:
+                logger.warning("TJBot lifecycle cleanup failed: %s", error)
+            return
+
+        # Signal path: run cleanup in a thread with a hard timeout
+        cleanup_done = threading.Event()
+
+        def _do_cleanup():
+            try:
+                self.cleanup()
+            except Exception as error:
+                logger.warning("TJBot lifecycle cleanup failed: %s", error)
+            finally:
+                cleanup_done.set()
+
+        t = threading.Thread(target=_do_cleanup, daemon=True)
+        t.start()
+        cleanup_done.wait(timeout=self._CLEANUP_TIMEOUT_S)
+        raise SystemExit(exit_code)
 
     def _initialize_hardware_from_config(self):
+        if self.rpi_driver is None:
+            return
         hw_config = self.config.hardware
         enabled_hardware: List[str] = []
 
@@ -226,7 +287,11 @@ class TJBot:
             enabled_hardware.append(Hardware.MICROPHONE)
         if hw_config.camera:
             enabled_hardware.append(Hardware.CAMERA)
-        if getattr(hw_config, "led", False) or getattr(hw_config, "led_neopixel", False) or getattr(hw_config, "led_common_anode", False):
+        if (
+            getattr(hw_config, "led", False)
+            or getattr(hw_config, "led_neopixel", False)
+            or getattr(hw_config, "led_common_anode", False)
+        ):
             enabled_hardware.append(Hardware.LED)
         if hw_config.servo:
             enabled_hardware.append(Hardware.SERVO)
@@ -242,8 +307,22 @@ class TJBot:
                 self.rpi_driver.setup_camera(self.config.see)
             elif hw == Hardware.LED:
                 shine_config = self.config.shine
-                has_neopixel = bool((shine_config.has_neopixel_led if shine_config else False) or getattr(hw_config, "led_neopixel", False))
-                has_common_anode = bool((shine_config.has_common_anode_led if shine_config else False) or getattr(hw_config, "led_common_anode", False))
+                has_neopixel = bool(
+                    (
+                        getattr(shine_config, "has_neopixel_led", False)
+                        if shine_config
+                        else False
+                    )
+                    or getattr(hw_config, "led_neopixel", False)
+                )
+                has_common_anode = bool(
+                    (
+                        getattr(shine_config, "has_common_anode_led", False)
+                        if shine_config
+                        else False
+                    )
+                    or getattr(hw_config, "led_common_anode", False)
+                )
 
                 if not has_neopixel and not has_common_anode:
                     raise TJBotError(
@@ -253,7 +332,9 @@ class TJBot:
 
                 if has_neopixel:
                     neopixel = shine_config.neopixel
-                    if not neopixel or (neopixel.gpio_pin is None and not neopixel.spi_interface):
+                    if not neopixel or (
+                        neopixel.gpio_pin is None and not neopixel.spi_interface
+                    ):
                         raise TJBotError(
                             "NeoPixel LED hardware is enabled but shine.neopixel is not configured. "
                             "Define [shine.neopixel] in your tjbot configuration."
@@ -279,9 +360,11 @@ class TJBot:
             elif hw == Hardware.SPEAKER:
                 self.rpi_driver.setup_speaker(self.config.speak)
 
-    def _assert_capability(self, capability: str):
-        if not self._initialized:
-            raise TJBotError("TJBot has not been initialized. Call initialize() before using TJBot methods.")
+    def _assert_capability(self, capability: str) -> RPiHardwareDriver:
+        if not self._initialized or self.rpi_driver is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
         if not self.rpi_driver.has_capability(capability):
             required_hardware = _CAPABILITY_HARDWARE_MAP.get(capability)
             if required_hardware:
@@ -289,12 +372,13 @@ class TJBot:
                     f"TJBot is not configured to {capability}. Required hardware: {required_hardware}."
                 )
             raise TJBotError(f"TJBot is not configured to {capability}.")
+        return self.rpi_driver
 
     def set_log_level(self, level: str) -> None:
         set_log_level(level)
 
-    async def sleep(self, sec: float) -> None:
-        await asyncio.sleep(sec)
+    def sleep(self, sec: float) -> None:
+        tjbot_sleep(sec)
 
     # --- SHINE ---
     def shine(self, color: str) -> None:
@@ -308,21 +392,20 @@ class TJBot:
         # Drivers accept #RRGGBB or RRGGBB usually.
         # rpi5_driver converts hex string using convert_hex_to_rgb or passes to spi.
         # utils.normalize_color returns #RRGGBB.
-            # rpi3/rpi4 LEDNeopixel expects an int color value.
+        # rpi3/rpi4 LEDNeopixel expects an int color value.
         # Let's strip # just in case driver expects clean hex.
         # Actually standardizing on #RRGGBB is better, but existing driver code might assume no #.
         # rpi5_driver `render_led` -> `convert_hex_to_rgb_color` strips #. `neopixel_led.render` (SPI) parses int(color, 16) which handles 0x but maybe not #.
         # `int("#ffffff", 16)` fails. `int("ffffff", 16)` works.
         # So I should strip # before calling driver render_led.
-        if c.startswith('#'):
+        if c.startswith("#"):
             c = c[1:]
 
         # Async in Node? Node `shine` is async. Python usually sync unless using asyncio.
         # RPi driver `render_led` is sync.
-        self.rpi_driver.render_led(c)
-
-    async def shine_async(self, color: str) -> None:
-        await asyncio.to_thread(self.shine, color)
+        driver = self.rpi_driver
+        assert driver is not None
+        driver.render_led(c)
 
     def pulse(self, color: str, duration: float = 1.0) -> None:
         """
@@ -331,10 +414,15 @@ class TJBot:
         self._assert_capability(Capability.SHINE)
 
         if duration < 0.5:
-            logger.warning("TJBot cannot pulse for less than 0.5 seconds")
+            logger.warning(
+                "TJBot cannot pulse for less than 0.5 seconds, using duration of 0.5 seconds"
+            )
             duration = 0.5
         if duration > 2.0:
-            raise TJBotError("TJBot cannot pulse for more than 2.0 seconds")
+            logger.warning(
+                "TJBot cannot pulse for more than 2 seconds, using duration of 2.0 seconds"
+            )
+            duration = 2.0
 
         num_steps = 20
         # fps = num_steps / duration
@@ -355,12 +443,14 @@ class TJBot:
         # Node: "colorRamp[i] = hex.toHsl().lightness(l).toRgb()..."
         # It ramps lightness from 0.0 to 0.5.
 
-        import webcolors
         import colorsys
+        import webcolors
 
-        rgb_target = webcolors.hex_to_rgb(normalize_color(color)) # (r, g, b)
+        rgb_target = webcolors.hex_to_rgb(normalize_color(color))  # (r, g, b)
         # Convert to HLS (Hue, Lightness, Saturation)
-        h, lightness, s = colorsys.rgb_to_hls(rgb_target.red/255.0, rgb_target.green/255.0, rgb_target.blue/255.0)
+        h, lightness, s = colorsys.rgb_to_hls(
+            rgb_target.red / 255.0, rgb_target.green / 255.0, rgb_target.blue / 255.0
+        )
 
         # We want to ramp L from 0 to 0.5 (or target L?)
         # Node code: `l = 0.0 + (i / (numSteps / 2)) * 0.5;`
@@ -370,9 +460,11 @@ class TJBot:
         ramp_colors = []
         half_steps = int(num_steps / 2)
         for i in range(half_steps):
-             l_val = (i / half_steps) * 0.5
-             r, g, b = colorsys.hls_to_rgb(h, l_val, s)
-             ramp_colors.append(webcolors.rgb_to_hex((int(r*255), int(g*255), int(b*255))))
+            l_val = (i / half_steps) * 0.5
+            r, g, b = colorsys.hls_to_rgb(h, l_val, s)
+            ramp_colors.append(
+                webcolors.rgb_to_hex((int(r * 255), int(g * 255), int(b * 255)))
+            )
 
         # Full ramp: up + down
         full_ramp = ramp_colors + ramp_colors[::-1]
@@ -381,8 +473,8 @@ class TJBot:
         # Node creates 'ease' array of times, then diffs them to get delays.
         ease_times = []
         for i in range(len(full_ramp)):
-             t = ease_in_out_quad(i, 0, 1, len(full_ramp))
-             ease_times.append(t * duration)
+            t = ease_in_out_quad(i, 0, 1, len(full_ramp))
+            ease_times.append(t * duration)
 
         # Delays
         # Wait, if we use time.sleep, we need delta.
@@ -390,67 +482,17 @@ class TJBot:
 
         prev_time = 0
         for i, c in enumerate(full_ramp):
-             # Calculate sleep time
-             target_time = ease_times[i]
-             sleep_time = target_time - prev_time
-             if sleep_time > 0:
-                 time.sleep(sleep_time)
-
-             # Render
-             if c.startswith('#'):
-                 c = c[1:]
-             self.rpi_driver.render_led(c)
-             prev_time = target_time
-
-    async def pulse_async(self, color: str, duration: float = 1.0) -> None:
-        self._assert_capability(Capability.SHINE)
-
-        if duration < 0.5:
-            logger.warning('TJBot cannot pulse for less than 0.5 seconds, using 0.5s')
-            duration = 0.5
-        if duration > 2.0:
-            raise TJBotError('TJBot cannot pulse for more than 2.0 seconds')
-
-        import colorsys
-
-        num_steps = 20
-        half_steps = num_steps // 2
-
-        rgb_target = webcolors.hex_to_rgb(normalize_color(color))
-        h, _l, s = colorsys.rgb_to_hls(
-            rgb_target.red / 255.0,
-            rgb_target.green / 255.0,
-            rgb_target.blue / 255.0,
-        )
-
-        ramp_colors: List[str] = []
-        for i in range(half_steps):
-            l_val = (i / half_steps) * 0.5
-            r, g, b = colorsys.hls_to_rgb(h, l_val, s)
-            ramp_colors.append(
-                webcolors.rgb_to_hex((int(r * 255), int(g * 255), int(b * 255)))
-            )
-        full_ramp = ramp_colors + ramp_colors[::-1]
-
-        def _ease_in_out_quad(t: float, b: float, c: float, d: float) -> float:
-            t /= d / 2
-            if t < 1:
-                return c / 2 * t * t + b
-            t -= 1
-            return -c / 2 * (t * (t - 2) - 1) + b
-
-        ease_times = [
-            _ease_in_out_quad(i, 0, 1, len(full_ramp)) * duration
-            for i in range(len(full_ramp))
-        ]
-
-        prev_time = 0.0
-        for i, c in enumerate(full_ramp):
-            sleep_time = ease_times[i] - prev_time
+            # Calculate sleep time
+            target_time = ease_times[i]
+            sleep_time = target_time - prev_time
             if sleep_time > 0:
-                await asyncio.sleep(sleep_time)
-            await asyncio.to_thread(self.rpi_driver.render_led, c.lstrip('#'))
-            prev_time = ease_times[i]
+                tjbot_sleep(sleep_time)
+
+            # Render
+            if c.startswith("#"):
+                c = c[1:]
+            self.rpi_driver.render_led(c)  # type: ignore[union-attr]
+            prev_time = target_time
 
     def shine_colors(self) -> List[str]:
         if not self._shine_colors:
@@ -468,88 +510,61 @@ class TJBot:
 
     # --- WAVE ---
     def arm_back(self):
-        self._assert_capability(Capability.WAVE)
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_BACK)
-
-    async def arm_back_async(self) -> None:
-        await asyncio.to_thread(self.arm_back)
+        driver = self._assert_capability(Capability.WAVE)
+        driver.render_servo_position(ServoPosition.ARM_BACK)
 
     def raise_arm(self):
-        self._assert_capability(Capability.WAVE)
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_UP)
-
-    async def raise_arm_async(self) -> None:
-        await asyncio.to_thread(self.raise_arm)
+        driver = self._assert_capability(Capability.WAVE)
+        driver.render_servo_position(ServoPosition.ARM_UP)
 
     def lower_arm(self):
-        self._assert_capability(Capability.WAVE)
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_DOWN)
-
-    async def lower_arm_async(self) -> None:
-        await asyncio.to_thread(self.lower_arm)
+        driver = self._assert_capability(Capability.WAVE)
+        driver.render_servo_position(ServoPosition.ARM_DOWN)
 
     def wave(self):
-        self._assert_capability(Capability.WAVE)
+        driver = self._assert_capability(Capability.WAVE)
         delay = 0.2
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_UP)
-        time.sleep(delay)
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_DOWN)
-        time.sleep(delay)
-        self.rpi_driver.render_servo_position(ServoPosition.ARM_UP)
-
-    async def wave_async(self) -> None:
-        await asyncio.to_thread(self.wave)
+        driver.render_servo_position(ServoPosition.ARM_UP)
+        tjbot_sleep(delay)
+        driver.render_servo_position(ServoPosition.ARM_DOWN)
+        tjbot_sleep(delay)
+        driver.render_servo_position(ServoPosition.ARM_UP)
 
     # --- SPEAK ---
     def speak(self, message: str):
-        self._assert_capability(Capability.SPEAK)
+        driver = self._assert_capability(Capability.SPEAK)
         logger.info(f"TJBot speaking: '{message}'")
-        self.rpi_driver.speak(message)
-
-    async def speak_async(self, message: str) -> None:
-        await asyncio.to_thread(self.speak, message)
+        driver.speak(message)
 
     def play(self, sound_file: str):
+        assert self.rpi_driver is not None
         self.rpi_driver.play_audio(sound_file)
 
-    async def play_async(self, sound_file: str) -> None:
-        await asyncio.to_thread(self.play, sound_file)
-
     # --- LISTEN ---
-    def listen(
-        self,
-        on_partial_result: Optional[Callable[[str], None]] = None,
-        on_final_result: Optional[Callable[[str], None]] = None,
-    ) -> Union[str, None]:
+    def listen(self) -> str:
         """
         Listen for speech.
         :param on_partial_result: Optional callback for partial transcript events.
         :param on_final_result: Optional callback for final transcript events.
         """
-        self._assert_capability(Capability.LISTEN)
+        driver = self._assert_capability(Capability.LISTEN)
 
         listen_config = self.config.listen
         mode = infer_stt_mode(listen_config)
 
-        local_cfg = listen_config.backend.local if (listen_config.backend and listen_config.backend.local) else None
-        model_name = (local_cfg.model if local_cfg else None) or '<unknown>'
-
-        if mode == 'streaming' and on_partial_result is None:
+        local_cfg = (
+            listen_config.backend.local
+            if (listen_config.backend and listen_config.backend.local)
+            else None
+        )
+        if mode == "streaming":
+            model_name = (local_cfg.model if local_cfg else None) or "<unknown>"
             raise TJBotError(
-                f'STT model "{model_name}" is streaming. Call listen(on_partial_result, on_final_result) '
-                f'so TJBot can deliver partial/final transcripts.'
+                f'STT model "{model_name}" is streaming. Call listen_async(on_partial_result, on_final_result) '
+                f"to receive partial/final transcript callbacks."
             )
 
-        if mode == 'offline' and on_partial_result is not None:
-            raise TJBotError(
-                f'STT model "{model_name}" is offline. Call listen() without a callback.'
-            )
-
-        if on_partial_result is not None or on_final_result is not None:
-            self.rpi_driver.listen_for_transcript(on_final=on_final_result, on_partial=on_partial_result)
-            return None
-
-        result = self.rpi_driver.listen_for_transcript()
+        result = driver.listen_for_transcript()
         logger.info(f'Heard: "{result}"')
         return result
 
@@ -557,35 +572,30 @@ class TJBot:
         self,
         on_partial_result: Optional[Callable[[str], None]] = None,
         on_final_result: Optional[Callable[[str], None]] = None,
-    ) -> Union[str, None]:
-        self._assert_capability(Capability.LISTEN)
+    ) -> None:
+        driver = self._assert_capability(Capability.LISTEN)
 
         listen_config = self.config.listen
         mode = infer_stt_mode(listen_config)
 
-        local_cfg = listen_config.backend.local if (listen_config.backend and listen_config.backend.local) else None
-        model_name = (local_cfg.model if local_cfg else None) or '<unknown>'
-
-        if mode == 'streaming' and on_partial_result is None:
+        if on_partial_result is None and on_final_result is None:
             raise TJBotError(
-                f'STT model "{model_name}" is streaming. Call listen_async(on_partial_result, on_final_result) '
-                f'so TJBot can deliver partial/final transcripts.'
+                "listen_async() requires at least one callback. Use listen() for synchronous final transcript mode."
             )
 
-        if mode == 'offline' and on_partial_result is not None:
-            raise TJBotError(
-                f'STT model "{model_name}" is offline. Call listen_async() without a callback.'
-            )
-
-        if mode == 'streaming':
+        if mode == "streaming":
             loop = asyncio.get_running_loop()
 
-            def _dispatch_callback(callback: Optional[Callable[[str], None]], text: str) -> None:
+            def _dispatch_callback(
+                callback: Optional[Callable[[str], None]], text: str
+            ) -> None:
                 if callback is None:
                     return
 
                 if asyncio.iscoroutinefunction(callback):
-                    loop.call_soon_threadsafe(lambda: asyncio.create_task(callback(text)))
+                    loop.call_soon_threadsafe(
+                        lambda: asyncio.create_task(callback(text))
+                    )
                 else:
                     loop.call_soon_threadsafe(callback, text)
 
@@ -596,31 +606,30 @@ class TJBot:
                 _dispatch_callback(on_final_result, text)
 
             await asyncio.to_thread(
-                self.rpi_driver.listen_for_transcript,
+                driver.listen_for_transcript,
                 on_partial=_partial_cb,
                 on_final=_final_cb,
             )
-            return None
+            return
 
-        result = await asyncio.to_thread(self.rpi_driver.listen_for_transcript)
+        result = await asyncio.to_thread(driver.listen_for_transcript)
         logger.info(f'Heard: "{result}"')
-        return result
+        if on_final_result is not None:
+            on_final_result(result)
+        return
 
     # --- LOOK ---
     def look(self, file_path: Optional[str] = None) -> str:
-        self._assert_capability(Capability.SEE)
-        return self.rpi_driver.capture_photo(file_path)
-
-    async def look_async(self, file_path: Optional[str] = None) -> str:
-        return await asyncio.to_thread(self.look, file_path)
+        driver = self._assert_capability(Capability.SEE)
+        return driver.capture_photo(file_path)
 
     def see(self) -> bytes:
-        self._assert_capability(Capability.SEE)
-        capture_buffer = getattr(self.rpi_driver, 'capture_photo_buffer', None)
+        driver = self._assert_capability(Capability.SEE)
+        capture_buffer = getattr(driver, "capture_photo_buffer", None)
         if callable(capture_buffer):
             return capture_buffer()
 
-        photo_path = self.rpi_driver.capture_photo()
+        photo_path = driver.capture_photo()
         try:
             with open(photo_path, "rb") as image_file:
                 return image_file.read()
@@ -628,26 +637,25 @@ class TJBot:
             if os.path.exists(photo_path):
                 os.remove(photo_path)
 
-    async def see_async(self) -> bytes:
-        return await asyncio.to_thread(self.see)
-
-    def get_local_models(self, model_type: Optional[str] = None, installed_only: bool = True) -> List[str]:
+    def get_local_models(
+        self, model_type: Optional[str] = None, installed_only: bool = True
+    ) -> List[str]:
         registry = ModelRegistry.get_instance()
         models = registry.lookup_models(model_type, installed_only)
         return [model.key for model in models]
 
     def detect_objects(self, image: Union[str, bytes]) -> List[Dict[str, Any]]:
-        self._assert_capability(Capability.SEE)
-        return self.rpi_driver.detect_objects(image)
+        driver = self._assert_capability(Capability.SEE)
+        return driver.detect_objects(image)
 
     def classify_image(self, image: Union[str, bytes]) -> List[Dict[str, Any]]:
-        self._assert_capability(Capability.SEE)
-        return self.rpi_driver.classify_image(image)
+        driver = self._assert_capability(Capability.SEE)
+        return driver.classify_image(image)
 
     def detect_faces(self, image: Union[str, bytes]) -> Dict[str, Any]:
-        self._assert_capability(Capability.SEE)
-        return self.rpi_driver.detect_faces(image)
+        driver = self._assert_capability(Capability.SEE)
+        return driver.detect_faces(image)
 
     def describe_image(self, image: Union[str, bytes]) -> Dict[str, Any]:
-        self._assert_capability(Capability.SEE)
-        return self.rpi_driver.describe_image(image)
+        driver = self._assert_capability(Capability.SEE)
+        return driver.describe_image(image)

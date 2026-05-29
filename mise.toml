@@ -7,11 +7,6 @@ description = "Build prep for python-tjbotlib (sync shared config assets)"
 depends = ["sync-config-schema"]
 run = "echo 'Build prep complete: synced config schema/assets'"
 
-[tasks.prebuild]
-description = "Alias for build preparation"
-depends = ["build"]
-run = "echo 'Prebuild complete'"
-
 [tasks.lint]
 description = "Run lint checks"
 run = "uv run ruff check ."

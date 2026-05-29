@@ -27,4 +27,6 @@ class AudioPlayer:
 
         if result.returncode != 0:
             stderr_output = (result.stderr or "").strip()
-            raise TJBotError(f"aplay exited with code {result.returncode}: {stderr_output}")
+            raise TJBotError(
+                f"aplay exited with code {result.returncode}: {stderr_output}"
+            )

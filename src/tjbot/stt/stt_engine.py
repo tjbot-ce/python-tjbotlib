@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Iterator, Optional, TypedDict
+from typing import Any, Callable, Iterable, Optional, TypedDict
 
 from ..config.config_types import ListenConfig, STTEngineConfig
 from ..utils.errors import TJBotError
@@ -25,10 +25,12 @@ class STTEngine(ABC):
         pass
 
     @abstractmethod
-    def transcribe(self, audio_stream: Iterator[bytes], options: Optional[STTRequestOptions] = None) -> str:
+    def transcribe(
+        self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
+    ) -> str:
         pass
 
-    def ensure_stream(self, stream: Optional[Iterator[bytes]]) -> Iterator[bytes]:
+    def ensure_stream(self, stream: Optional[Iterable[bytes]]) -> Iterable[bytes]:
         if stream is None:
             raise TJBotError("Microphone stream is not available")
         return stream
@@ -66,12 +68,19 @@ def create_stt_engine(listen_config: ListenConfig) -> STTEngine:
 
     try:
         if backend_type == "none":
+
             class NoneSTTEngine(STTEngine):
-                def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
+                def initialize(
+                    self, microphone_rate: int, microphone_channels: int
+                ) -> None:
                     _ = microphone_rate
                     _ = microphone_channels
 
-                def transcribe(self, audio_stream: Iterator[bytes], options: Optional[STTRequestOptions] = None) -> str:
+                def transcribe(
+                    self,
+                    audio_stream: Iterable[bytes],
+                    options: Optional[STTRequestOptions] = None,
+                ) -> str:
                     _ = audio_stream
                     _ = options
                     raise TJBotError(
@@ -83,27 +92,32 @@ def create_stt_engine(listen_config: ListenConfig) -> STTEngine:
         if backend_type == "local":
             from .backends.sherpa_onnx_stt import SherpaONNXSTTEngine
 
-            cfg = backend_config.local if backend_config else None
-            return SherpaONNXSTTEngine(cfg)
+            local_cfg = backend_config.local if backend_config else None
+            return SherpaONNXSTTEngine(local_cfg)
 
         if backend_type == "ibm-watson-stt":
             from .backends.watson_stt import IBMWatsonSTTEngine
 
-            cfg = backend_config.ibm_watson_stt if backend_config else None
-            return IBMWatsonSTTEngine(cfg)
+            watson_cfg = backend_config.ibm_watson_stt if backend_config else None
+            return IBMWatsonSTTEngine(watson_cfg)
 
         if backend_type == "google-cloud-stt":
             from .backends.google_cloud_stt import GoogleCloudSTTEngine
 
-            cfg = backend_config.google_cloud_stt if backend_config else None
-            return GoogleCloudSTTEngine(cfg)
+            google_cfg = backend_config.google_cloud_stt if backend_config else None
+            return GoogleCloudSTTEngine(google_cfg)
 
         if backend_type == "azure-stt":
             from .backends.azure_stt import AzureSTTEngine
 
-            cfg = backend_config.azure_stt if backend_config else None
-            return AzureSTTEngine(cfg)
+            azure_cfg = backend_config.azure_stt if backend_config else None
+            return AzureSTTEngine(azure_cfg)
 
         raise TJBotError(f"Unknown STT backend type: {backend_type}")
+    except TJBotError:
+        raise
     except Exception as error:
-        raise TJBotError(f'Failed to load STT backend "{backend_type}". Ensure dependencies are installed.', cause=error)
+        raise TJBotError(
+            f'Failed to load STT backend "{backend_type}". Ensure dependencies are installed.',
+            cause=error,
+        )

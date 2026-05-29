@@ -9,7 +9,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 from tjbot.utils import ModelRegistry
@@ -32,12 +32,12 @@ except ImportError:
 
 # ANSI color codes
 COLORS = {
-    'RESET': '\033[0m',
-    'DIM': '\033[2m',
-    'BRIGHT': '\033[1m',
-    'GREEN': '\033[32m',
-    'BLUE': '\033[34m',
-    'YELLOW': '\033[33m',
+    "RESET": "\033[0m",
+    "DIM": "\033[2m",
+    "BRIGHT": "\033[1m",
+    "GREEN": "\033[32m",
+    "BLUE": "\033[34m",
+    "YELLOW": "\033[33m",
 }
 
 
@@ -59,23 +59,27 @@ def run_test():
         verify_local_sherpa_runtime()
     backend_config = prompt_backend_specific_options(selected_backend)
     selected_device = prompt_device_choice()
-    listen_config = build_listen_config(selected_backend, backend_config, selected_device)
+    listen_config = build_listen_config(
+        selected_backend, backend_config, selected_device
+    )
 
     print(format_section(f"Initializing TJBot with STT ({selected_backend})"))
 
     # Instantiate TJBot with override configuration
-    tjbot = TJBot({
-        "log": {"level": "info"},
-        "hardware": {
-            "camera": False,
-            "led_common_anode": False,
-            "led_neopixel": False,
-            "microphone": True,
-            "servo": False,
-            "speaker": False,
-        },
-        "listen": listen_config
-    })
+    tjbot = TJBot(
+        {
+            "log": {"level": "info"},
+            "hardware": {
+                "camera": False,
+                "led_common_anode": False,
+                "led_neopixel": False,
+                "microphone": True,
+                "servo": False,
+                "speaker": False,
+            },
+            "listen": listen_config,
+        }
+    )
 
     print("✓ TJBot initialized")
 
@@ -104,10 +108,14 @@ def run_test():
             try:
                 transcript = tjbot.listen()
                 if transcript:
-                    print(f"{COLORS['BRIGHT']}{COLORS['GREEN']}Final: {transcript}{COLORS['RESET']}")
+                    print(
+                        f"{COLORS['BRIGHT']}{COLORS['GREEN']}Final: {transcript}{COLORS['RESET']}"
+                    )
             except Exception as error:
                 if not is_shutting_down:
-                    print(f"{COLORS['YELLOW']}Error during transcription: {error}{COLORS['RESET']}")
+                    print(
+                        f"{COLORS['YELLOW']}Error during transcription: {error}{COLORS['RESET']}"
+                    )
                     is_shutting_down = True
                     sys.exit(1)
     except Exception as error:
@@ -118,7 +126,9 @@ def run_test():
 
 def list_alsa_input_devices() -> List[Dict[str, str]]:
     try:
-        output = subprocess.check_output(["arecord", "-l"], text=True, stderr=subprocess.STDOUT)
+        output = subprocess.check_output(
+            ["arecord", "-l"], text=True, stderr=subprocess.STDOUT
+        )
     except Exception:
         return []
 
@@ -144,7 +154,9 @@ def prompt_device_choice() -> Optional[str]:
     if len(devices) == 1:
         print(f"ℹ️  Using single ALSA input device: {devices[0]['name']}")
         return devices[0]["value"]
-    return select_option("Select audio input device:", devices, default=devices[0]["value"])
+    return select_option(
+        "Select audio input device:", devices, default=devices[0]["value"]
+    )
 
 
 def prompt_backend_choice() -> str:
@@ -183,9 +195,13 @@ def prompt_sherpa_onnx_options() -> Dict[str, Any]:
     for model in models:
         downloaded = registry.is_model_downloaded(model.key)
         status = "✓ downloaded" if downloaded else "✗ not downloaded"
-        choices.append({"name": f"{model.label or model.key} {status}", "value": model.key})
+        choices.append(
+            {"name": f"{model.label or model.key} {status}", "value": model.key}
+        )
 
-    model_key = select_option("Select a Sherpa-ONNX STT model:", choices, default=models[0].key)
+    model_key = select_option(
+        "Select a Sherpa-ONNX STT model:", choices, default=models[0].key
+    )
     return {"model": model_key}
 
 
@@ -252,7 +268,11 @@ def prompt_azure_options() -> Dict[str, Any]:
     return {"language": language}
 
 
-def build_listen_config(selected_backend: str, backend_config: Dict[str, Any], selected_device: Optional[str]) -> Dict[str, Any]:
+def build_listen_config(
+    selected_backend: str,
+    backend_config: Dict[str, Any],
+    selected_device: Optional[str],
+) -> Dict[str, Any]:
     listen_config: Dict[str, Any] = {
         "backend": {
             "type": selected_backend,
@@ -283,10 +303,11 @@ def verify_local_sherpa_runtime() -> None:
         ld_library_path = os.getenv("LD_LIBRARY_PATH")
         if ld_library_path:
             print(f"  LD_LIBRARY_PATH={ld_library_path}")
-            print("  Hint: custom sherpa runtime libraries may be incompatible with installed package versions.")
+            print(
+                "  Hint: custom sherpa runtime libraries may be incompatible with installed package versions."
+            )
         sys.exit(1)
 
 
 if __name__ == "__main__":
     run_test()
-

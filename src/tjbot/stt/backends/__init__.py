@@ -3,4 +3,9 @@ from .google_cloud_stt import GoogleCloudSTTEngine
 from .azure_stt import AzureSTTEngine
 from .sherpa_onnx_stt import SherpaONNXSTTEngine
 
-__all__ = ["IBMWatsonSTTEngine", "GoogleCloudSTTEngine", "AzureSTTEngine", "SherpaONNXSTTEngine"]
+__all__ = [
+    "IBMWatsonSTTEngine",
+    "GoogleCloudSTTEngine",
+    "AzureSTTEngine",
+    "SherpaONNXSTTEngine",
+]

@@ -10,12 +10,14 @@ from ..utils.logging import LogEmoji, get_logger
 logger = get_logger(__name__)
 EMO = LogEmoji.RPI
 
+
 class RPi5Driver(RPiBaseHardwareDriver):
     """
     Hardware driver for Raspberry Pi 5.
     Uses SPI for NeoPixel.
     Uses gpiozero/lgpio for GPIO/PWM.
     """
+
     def __init__(self):
         super().__init__()
         self.common_anode_led: Optional[LEDCommonAnode] = None
@@ -39,16 +41,24 @@ class RPi5Driver(RPiBaseHardwareDriver):
         self.initialized_hardware.add(Hardware.LED)
 
     def setup_led_neopixel(self, config: LEDNeopixelConfig) -> None:
-        spi_interface = config.spi_interface if config.spi_interface is not None else "/dev/spidev0.0"
+        spi_interface = (
+            config.spi_interface
+            if config.spi_interface is not None
+            else "/dev/spidev0.0"
+        )
         use_grb = config.use_grb_format if config.use_grb_format is not None else False
 
-        logger.debug("%s initializing NeoPixel LED on SPI %s", LogEmoji.LED, spi_interface)
+        logger.debug(
+            "%s initializing NeoPixel LED on SPI %s", LogEmoji.LED, spi_interface
+        )
         self.neopixel_led = LEDNeopixelSPI(spi_interface, use_grb)
         self.initialized_hardware.add(Hardware.LED)
 
     def setup_servo(self, config: WaveConfig) -> None:
         pin = config.servo_pin if config.servo_pin is not None else 18
-        logger.debug("%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin)
+        logger.debug(
+            "%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin
+        )
         self.servo = LGPIOServoController(0, pin)
         self.initialized_hardware.add(Hardware.SERVO)
 
@@ -56,13 +66,18 @@ class RPi5Driver(RPiBaseHardwareDriver):
         if self.common_anode_led:
             self.common_anode_led.render(rgb_color)
         else:
-            logger.warning("%s attempted to render on an uninitialized Common Anode LED", LogEmoji.LED)
+            logger.warning(
+                "%s attempted to render on an uninitialized Common Anode LED",
+                LogEmoji.LED,
+            )
 
     def render_led_neopixel(self, hex_color: str) -> None:
         if self.neopixel_led:
             self.neopixel_led.render(hex_color)
         else:
-            logger.warning("%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED)
+            logger.warning(
+                "%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED
+            )
 
     def render_led(self, hex_color: str) -> None:
         if self.common_anode_led:
@@ -76,4 +91,6 @@ class RPi5Driver(RPiBaseHardwareDriver):
         if self.servo:
             self.servo.set_position(position)
         else:
-            logger.warning("%s attempted to render on an uninitialized servo", LogEmoji.SERVO)
+            logger.warning(
+                "%s attempted to render on an uninitialized servo", LogEmoji.SERVO
+            )

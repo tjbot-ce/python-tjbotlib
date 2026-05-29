@@ -31,7 +31,7 @@ sudo apt-get update
 sudo apt-get install -y rpicam-apps-lite libasound2-dev
 ```
 
-> Note: `rpicam-apps-lite` is installed as part of TJBot's bootstrap script.
+> Note: `rpicam-apps-lite` is installed as part of TJBot's setup script.
 > `libasound2-dev` is needed to build `pyalsaaudio` when syncing dependencies.
 
 ## Installation

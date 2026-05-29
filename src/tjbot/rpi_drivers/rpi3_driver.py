@@ -42,12 +42,16 @@ class RPi3Driver(RPiBaseHardwareDriver):
         logger.debug("%s initializing NeoPixel LED on pin %s", LogEmoji.LED, pin)
         self.neopixel_led = LEDNeopixel(pin)
         self.neopixel_led.initialize()
-        self.use_grb_format = config.use_grb_format if config.use_grb_format is not None else True
+        self.use_grb_format = (
+            config.use_grb_format if config.use_grb_format is not None else True
+        )
         self.initialized_hardware.add(Hardware.LED)
 
     def setup_servo(self, config: WaveConfig) -> None:
         pin = config.servo_pin if config.servo_pin is not None else 18
-        logger.debug("%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin)
+        logger.debug(
+            "%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin
+        )
         self.servo = LGPIOServoController(0, pin)
         self.initialized_hardware.add(Hardware.SERVO)
 
@@ -55,11 +59,16 @@ class RPi3Driver(RPiBaseHardwareDriver):
         if self.common_anode_led:
             self.common_anode_led.render(rgb_color)
         else:
-            logger.warning("%s attempted to render on an uninitialized Common Anode LED", LogEmoji.LED)
+            logger.warning(
+                "%s attempted to render on an uninitialized Common Anode LED",
+                LogEmoji.LED,
+            )
 
     def render_led_neopixel(self, hex_color: str) -> None:
         if not self.neopixel_led:
-            logger.warning("%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED)
+            logger.warning(
+                "%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED
+            )
             return
 
         color = hex_color.lstrip("#")
@@ -90,25 +99,42 @@ class RPi3Driver(RPiBaseHardwareDriver):
         if self.servo:
             self.servo.set_position(position)
         else:
-            logger.warning("%s attempted to render on an uninitialized servo", LogEmoji.SERVO)
+            logger.warning(
+                "%s attempted to render on an uninitialized servo", LogEmoji.SERVO
+            )
 
     def _warn_if_using_local_ai(self, ai_type: str) -> None:
         if self._user_has_been_warned.get(ai_type):
             return
 
-        if ai_type == "stt" and self.listen_config and self.listen_config.backend and self.listen_config.backend.type == "local":
+        if (
+            ai_type == "stt"
+            and self.listen_config
+            and self.listen_config.backend
+            and self.listen_config.backend.type == "local"
+        ):
             logger.warning(
                 "%s Using local STT on Raspberry Pi 3 may have poor performance. "
                 "Consider using a cloud-based backend for better results.",
                 LogEmoji.STT,
             )
-        elif ai_type == "tts" and self.speak_config and self.speak_config.backend and self.speak_config.backend.type == "local":
+        elif (
+            ai_type == "tts"
+            and self.speak_config
+            and self.speak_config.backend
+            and self.speak_config.backend.type == "local"
+        ):
             logger.warning(
                 "%s Using local TTS on Raspberry Pi 3 may have poor performance. "
                 "Consider using a cloud-based backend for better results.",
                 LogEmoji.TTS,
             )
-        elif ai_type == "vision" and self.see_config and self.see_config.backend and self.see_config.backend.type == "local":
+        elif (
+            ai_type == "vision"
+            and self.see_config
+            and self.see_config.backend
+            and self.see_config.backend.type == "local"
+        ):
             logger.warning(
                 "%s Using local Vision on Raspberry Pi 3 may have poor performance. "
                 "Consider using a cloud-based backend for better results.",
@@ -117,7 +143,9 @@ class RPi3Driver(RPiBaseHardwareDriver):
 
         self._user_has_been_warned[ai_type] = True
 
-    def listen_for_transcript(self, on_partial: Any = None, on_final: Any = None) -> str:
+    def listen_for_transcript(
+        self, on_partial: Any = None, on_final: Any = None
+    ) -> str:
         self._warn_if_using_local_ai("stt")
         return super().listen_for_transcript(on_partial=on_partial, on_final=on_final)
 

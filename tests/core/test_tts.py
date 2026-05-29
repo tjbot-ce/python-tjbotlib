@@ -27,11 +27,11 @@ def test_tts_none_backend_raises_disabled_error():
     speaker = MagicMock()
     controller = TTSController(speaker)
 
-    speak_config = SpeakConfig(backend=TTSBackendConfig(type='none'))
+    speak_config = SpeakConfig(backend=TTSBackendConfig(type="none"))
     controller.initialize(speak_config)
 
-    with pytest.raises(TJBotError, match='TTS is disabled'):
-        controller.speak('hello')
+    with pytest.raises(TJBotError, match="TTS is disabled"):
+        controller.speak("hello")
 
 
 def test_tts_local_backend_uses_mocked_engine_module(monkeypatch):
@@ -39,13 +39,16 @@ def test_tts_local_backend_uses_mocked_engine_module(monkeypatch):
         def __init__(self, cfg):
             self.cfg = cfg
 
+        def initialize(self) -> None:
+            pass
+
         def synthesize(self, _text: str) -> bytes:
-            return b'RIFF'
+            return b"RIFF"
 
     _install_fake_backend(
         monkeypatch,
-        'tjbot.tts.backends.sherpa_onnx_tts',
-        'SherpaONNXTTSEngine',
+        "tjbot.tts.backends.sherpa_onnx_tts",
+        "SherpaONNXTTSEngine",
         FakeLocalEngine,
     )
 
@@ -54,14 +57,14 @@ def test_tts_local_backend_uses_mocked_engine_module(monkeypatch):
 
     speak_config = SpeakConfig(
         backend=TTSBackendConfig(
-            type='local',
-            local=TTSBackendLocalConfig(model='vits-piper-en_US-ryan-low'),
+            type="local",
+            local=TTSBackendLocalConfig(model="vits-piper-en_US-ryan-low"),
         )
     )
     controller.initialize(speak_config)
 
     assert isinstance(controller.engine, FakeLocalEngine)
-    assert controller.engine.cfg.model == 'vits-piper-en_US-ryan-low'
+    assert controller.engine.cfg.model == "vits-piper-en_US-ryan-low"
 
 
 def test_tts_ibm_backend_uses_mocked_engine_module(monkeypatch):
@@ -69,13 +72,16 @@ def test_tts_ibm_backend_uses_mocked_engine_module(monkeypatch):
         def __init__(self, cfg):
             self.cfg = cfg
 
+        def initialize(self) -> None:
+            pass
+
         def synthesize(self, _text: str) -> bytes:
-            return b'RIFF'
+            return b"RIFF"
 
     _install_fake_backend(
         monkeypatch,
-        'tjbot.tts.backends.watson_tts',
-        'IBMWatsonTTSEngine',
+        "tjbot.tts.backends.ibm_watson_tts",
+        "IBMWatsonTTSEngine",
         FakeWatsonEngine,
     )
 
@@ -85,15 +91,17 @@ def test_tts_ibm_backend_uses_mocked_engine_module(monkeypatch):
     speak_config = SpeakConfig(
         backend=TTSBackendConfig.model_validate(
             {
-                'type': 'ibm-watson-tts',
-                'ibm-watson-tts': TTSBackendIBMWatsonConfig(voice='en-US_AllisonV3Voice').model_dump(),
+                "type": "ibm-watson-tts",
+                "ibm-watson-tts": TTSBackendIBMWatsonConfig(
+                    voice="en-US_AllisonV3Voice"
+                ).model_dump(),
             }
         )
     )
     controller.initialize(speak_config)
 
     assert isinstance(controller.engine, FakeWatsonEngine)
-    assert controller.engine.cfg.voice == 'en-US_AllisonV3Voice'
+    assert controller.engine.cfg.voice == "en-US_AllisonV3Voice"
 
 
 def test_tts_google_backend_uses_mocked_engine_module(monkeypatch):
@@ -101,13 +109,16 @@ def test_tts_google_backend_uses_mocked_engine_module(monkeypatch):
         def __init__(self, cfg):
             self.cfg = cfg
 
+        def initialize(self) -> None:
+            pass
+
         def synthesize(self, _text: str) -> bytes:
-            return b'RIFF'
+            return b"RIFF"
 
     _install_fake_backend(
         monkeypatch,
-        'tjbot.tts.backends.google_tts',
-        'GoogleCloudTTSEngine',
+        "tjbot.tts.backends.google_cloud_tts",
+        "GoogleCloudTTSEngine",
         FakeGoogleEngine,
     )
 
@@ -117,15 +128,17 @@ def test_tts_google_backend_uses_mocked_engine_module(monkeypatch):
     speak_config = SpeakConfig(
         backend=TTSBackendConfig.model_validate(
             {
-                'type': 'google-cloud-tts',
-                'google-cloud-tts': TTSBackendGoogleCloudConfig(language_code='en-US').model_dump(by_alias=True),
+                "type": "google-cloud-tts",
+                "google-cloud-tts": TTSBackendGoogleCloudConfig(
+                    language_code="en-US"
+                ).model_dump(by_alias=True),
             }
         )
     )
     controller.initialize(speak_config)
 
     assert isinstance(controller.engine, FakeGoogleEngine)
-    assert controller.engine.cfg.language_code == 'en-US'
+    assert controller.engine.cfg.language_code == "en-US"
 
 
 def test_tts_azure_backend_uses_mocked_engine_module(monkeypatch):
@@ -133,13 +146,16 @@ def test_tts_azure_backend_uses_mocked_engine_module(monkeypatch):
         def __init__(self, cfg):
             self.cfg = cfg
 
+        def initialize(self) -> None:
+            pass
+
         def synthesize(self, _text: str) -> bytes:
-            return b'RIFF'
+            return b"RIFF"
 
     _install_fake_backend(
         monkeypatch,
-        'tjbot.tts.backends.azure_tts',
-        'AzureTTSEngine',
+        "tjbot.tts.backends.azure_tts",
+        "AzureTTSEngine",
         FakeAzureEngine,
     )
 
@@ -149,26 +165,28 @@ def test_tts_azure_backend_uses_mocked_engine_module(monkeypatch):
     speak_config = SpeakConfig(
         backend=TTSBackendConfig.model_validate(
             {
-                'type': 'azure-tts',
-                'azure-tts': TTSBackendAzureConfig(voiceName='en-US-JennyNeural').model_dump(),
+                "type": "azure-tts",
+                "azure-tts": TTSBackendAzureConfig(
+                    voice="en-US-JennyNeural"
+                ).model_dump(),
             }
         )
     )
     controller.initialize(speak_config)
 
     assert isinstance(controller.engine, FakeAzureEngine)
-    assert controller.engine.cfg.voiceName == 'en-US-JennyNeural'
+    assert controller.engine.cfg.voice == "en-US-JennyNeural"
 
 
 def test_tts_backend_init_error_propagates(monkeypatch):
     class FailingGoogleEngine:
         def __init__(self, _cfg):
-            raise TJBotError('backend init failed')
+            raise TJBotError("backend init failed")
 
     _install_fake_backend(
         monkeypatch,
-        'tjbot.tts.backends.google_tts',
-        'GoogleCloudTTSEngine',
+        "tjbot.tts.backends.google_cloud_tts",
+        "GoogleCloudTTSEngine",
         FailingGoogleEngine,
     )
 
@@ -177,13 +195,15 @@ def test_tts_backend_init_error_propagates(monkeypatch):
     speak_config = SpeakConfig(
         backend=TTSBackendConfig.model_validate(
             {
-                'type': 'google-cloud-tts',
-                'google-cloud-tts': TTSBackendGoogleCloudConfig(language_code='en-US').model_dump(by_alias=True),
+                "type": "google-cloud-tts",
+                "google-cloud-tts": TTSBackendGoogleCloudConfig(
+                    language_code="en-US"
+                ).model_dump(by_alias=True),
             }
         )
     )
 
-    with pytest.raises(TJBotError, match='backend init failed'):
+    with pytest.raises(TJBotError, match="backend init failed"):
         controller.initialize(speak_config)
 
 
@@ -192,12 +212,12 @@ def test_tts_speak_delegates_to_engine_and_cleans_temp_file():
     controller = TTSController(speaker)
 
     engine = MagicMock()
-    engine.synthesize.return_value = b'RIFF'
+    engine.synthesize.return_value = b"RIFF"
     controller.engine = engine
 
-    controller.speak('hello world')
+    controller.speak("hello world")
 
-    engine.synthesize.assert_called_once_with('hello world')
+    engine.synthesize.assert_called_once_with("hello world")
     speaker.play_audio.assert_called_once()
     played_path = speaker.play_audio.call_args[0][0]
 
@@ -208,16 +228,33 @@ def test_tts_speak_raises_when_engine_not_initialized():
     speaker = MagicMock()
     controller = TTSController(speaker)
 
-    with pytest.raises(TJBotError, match='not initialized'):
-        controller.speak('hello')
+    with pytest.raises(TJBotError, match="not initialized"):
+        controller.speak("hello")
 
 
 def test_tts_unknown_backend_leaves_engine_uninitialized():
     speaker = MagicMock()
     controller = TTSController(speaker)
 
-    speak_config = SpeakConfig(backend=TTSBackendConfig(type='none'))
-    speak_config.backend.type = 'unknown-backend'  # type: ignore[assignment]
+    speak_config = SpeakConfig(backend=TTSBackendConfig(type="none"))
+    speak_config.backend.type = "unknown-backend"  # type: ignore[assignment]
     controller.initialize(speak_config)
 
     assert controller.engine is None
+
+
+def test_tts_transcribe_manages_microphone_lifecycle_and_retries_on_no_speech():
+    speaker = MagicMock()
+    controller = TTSController(speaker)
+
+    engine = MagicMock()
+    engine.synthesize.side_effect = [TJBotError("TTS is disabled."), b"RIFF"]
+    controller.engine = engine
+
+    with pytest.raises(TJBotError, match="TTS is disabled"):
+        controller.speak("hello")
+
+    controller.speak("hello")
+
+    assert engine.synthesize.call_count == 2
+    speaker.play_audio.assert_called_once()

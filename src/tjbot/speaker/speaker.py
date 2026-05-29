@@ -8,41 +8,57 @@ from .audio_player import AudioPlayer
 logger = get_logger(__name__)
 EMO = LogEmoji.SPEAKER
 
+
 class SpeakerController:
     """
     TJBot Speaker Controller.
     Uses 'aplay' for audio playback.
     """
+
     def __init__(self):
-        self.device = ''
+        self.device = ""
         self.on_pause_callback: Optional[Callable[[], None]] = None
         self.on_resume_callback: Optional[Callable[[], None]] = None
 
     def _detect_speaker_device(self) -> str:
         """Auto-detect the first available audio playback device, preferring USB over HDMI."""
         try:
-            output = subprocess.check_output(['aplay', '-l'], text=True)
+            output = subprocess.check_output(["aplay", "-l"], text=True)
         except Exception as error:
             logger.error("%s Error detecting speaker device: %s", EMO, error)
-            return ''
+            return ""
 
         lines = output.splitlines()
         # Prefer USB audio devices over HDMI
-        usb_line = next((l for l in lines if 'USB' in l and re.search(r'card\s+(\d+):.*device\s+(\d+):', l)), None)
-        target_line = usb_line or next((l for l in lines if re.search(r'card\s+(\d+):.*device\s+(\d+):', l)), None)
+        usb_line = next(
+            (
+                line
+                for line in lines
+                if "USB" in line and re.search(r"card\s+(\d+):.*device\s+(\d+):", line)
+            ),
+            None,
+        )
+        target_line = usb_line or next(
+            (
+                line
+                for line in lines
+                if re.search(r"card\s+(\d+):.*device\s+(\d+):", line)
+            ),
+            None,
+        )
 
         if target_line:
-            match = re.search(r'card\s+(\d+):.*device\s+(\d+):', target_line)
+            match = re.search(r"card\s+(\d+):.*device\s+(\d+):", target_line)
             if match:
-                device_string = f'plughw:{match.group(1)},{match.group(2)}'
+                device_string = f"plughw:{match.group(1)},{match.group(2)}"
                 logger.debug("%s auto-detected speaker device: %s", EMO, device_string)
                 return device_string
 
         logger.warning("%s No audio playback devices found", EMO)
-        return ''
+        return ""
 
-    def initialize(self, device: str = '') -> None:
-        selected_device = device or ''
+    def initialize(self, device: str = "") -> None:
+        selected_device = device or ""
         if not selected_device:
             selected_device = self._detect_speaker_device()
 
@@ -76,7 +92,9 @@ class SpeakerController:
                 self.device,
             )
         else:
-            logger.debug("%s Playing audio file %s through default audio device", EMO, file_path)
+            logger.debug(
+                "%s Playing audio file %s through default audio device", EMO, file_path
+            )
 
         try:
             player.play(file_path, self.device)

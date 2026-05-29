@@ -61,7 +61,9 @@ def handle(req):
             if PixelStrip is None:
                 reply(req_id, False, "rpi_ws281x library not found. Please install it.")
                 return
-            strip = PixelStrip(num_leds, pin, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS)
+            strip = PixelStrip(
+                num_leds, pin, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS
+            )
             strip.begin()
             initialized = True
             reply(req_id, True)

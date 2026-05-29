@@ -1,6 +1,6 @@
 [project]
 name = "python-tjbotlib"
-version = "0.1.0"
+version = "3.0.0"
 description = "Python library for writing TJBot recipes"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -63,3 +63,31 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+
+[[tool.mypy.overrides]]
+module = [
+    "gpiozero",
+    "lgpio",
+    "ibm_watson",
+    "ibm_cloud_sdk_core.*",
+    "azure.cognitiveservices.*",
+    "onnxruntime",
+    "webcolors",
+    "google.cloud.*",
+    "msrest.*",
+    "picamera2",
+    "spidev",
+    "rpi_ws281x",
+    "pigpio",
+    "RPi.*",
+    "requests",
+    "yaml",
+    "jsonschema",
+    "jsonschema.*",
+    "sherpa_onnx",
+]
+ignore_missing_imports = true

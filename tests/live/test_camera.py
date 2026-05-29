@@ -9,7 +9,7 @@ import sys
 import os
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 from tjbot.camera import CameraController
@@ -61,7 +61,9 @@ def run_test():
         photo_path_1 = tjbot.look()
         print(f"Photo saved to: {photo_path_1}")
 
-        assert os.path.exists(photo_path_1), "Photo file was not created at default path"
+        assert os.path.exists(photo_path_1), (
+            "Photo file was not created at default path"
+        )
         print("✓ PASS - Photo file created")
 
         # Test 2: Take photo with custom path via tjbot.look()
@@ -71,7 +73,9 @@ def run_test():
         print(f"Photo saved to: {photo_path_2}")
 
         assert os.path.exists(photo_path_2), "Photo file was not created at custom path"
-        assert photo_path_2 == custom_path, "Photo path does not match requested custom path"
+        assert photo_path_2 == custom_path, (
+            "Photo path does not match requested custom path"
+        )
         print("✓ PASS - Photo file created at custom path")
 
         # Test 3: Multiple photos via tjbot.look()
@@ -115,7 +119,9 @@ def run_test():
         temp_photo_path = camera.capture_photo()
         print(f"Photo saved to: {temp_photo_path}")
 
-        assert os.path.exists(temp_photo_path), "Photo file was not created at temp path"
+        assert os.path.exists(temp_photo_path), (
+            "Photo file was not created at temp path"
+        )
         print("✓ PASS - Photo file created at temp path")
 
         # Test 4: Capture photo with specified path
@@ -124,8 +130,12 @@ def run_test():
         specified_photo_path = camera.capture_photo(specified_path)
         print(f"Photo saved to: {specified_photo_path}")
 
-        assert os.path.exists(specified_photo_path), "Photo file was not created at specified path"
-        assert specified_photo_path == specified_path, "Photo path does not match requested path"
+        assert os.path.exists(specified_photo_path), (
+            "Photo file was not created at specified path"
+        )
+        assert specified_photo_path == specified_path, (
+            "Photo path does not match requested path"
+        )
         print("✓ PASS - Photo file created at specified path")
 
         print(format_title("Camera Test Complete"))
@@ -145,4 +155,3 @@ def run_test():
 
 if __name__ == "__main__":
     run_test()
-

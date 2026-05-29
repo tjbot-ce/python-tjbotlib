@@ -12,7 +12,7 @@ class TJBotError(Exception):
         cause: Optional[Exception] = None,
     ):
         super().__init__(message)
-        self.name = 'TJBotError'
+        self.name = "TJBotError"
         self.code = code
         self.context = context
         self.cause = cause

@@ -44,7 +44,9 @@ def main() -> int:
 
     # Note: config/config_types.py is manually maintained.
     # When the schema changes, manually update config_types.py to match.
-    print("\nNote: Update src/tjbot/config/config_types.py manually if the schema has changed.")
+    print(
+        "\nNote: Update src/tjbot/config/config_types.py manually if the schema has changed."
+    )
 
     return 0
 

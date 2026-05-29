@@ -5,10 +5,10 @@ from .rpi5_driver import RPi5Driver
 from .rpi_detect import RPiDetect
 
 __all__ = [
-	"RPiHardwareDriver",
-	"RPiBaseHardwareDriver",
-	"RPi3Driver",
-	"RPi4Driver",
-	"RPi5Driver",
-	"RPiDetect",
+    "RPiHardwareDriver",
+    "RPiBaseHardwareDriver",
+    "RPi3Driver",
+    "RPi4Driver",
+    "RPi5Driver",
+    "RPiDetect",
 ]

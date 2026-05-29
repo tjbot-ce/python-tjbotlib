@@ -19,7 +19,9 @@ class _MicrophoneInputStream:
 
     def __iter__(self) -> Iterator[bytes]:
         bytes_per_sample = 2
-        chunk_bytes = self._controller._chunk_size * self._controller._channels * bytes_per_sample
+        chunk_bytes = (
+            self._controller._chunk_size * self._controller._channels * bytes_per_sample
+        )
 
         while self._controller._is_started and self._controller._mic_process:
             process = self._controller._mic_process
@@ -63,7 +65,9 @@ class MicrophoneController:
             return ""
 
         try:
-            output = subprocess.check_output(["arecord", "-l"], text=True, stderr=subprocess.DEVNULL)
+            output = subprocess.check_output(
+                ["arecord", "-l"], text=True, stderr=subprocess.DEVNULL
+            )
         except Exception as error:
             _logger.error("%s error detecting microphone device: %s", _EMO, error)
             return ""
@@ -91,11 +95,19 @@ class MicrophoneController:
 
         if device and device != "":
             self._device = device
-            _logger.debug("%s initializing microphone with user-defined audio device: %s", _EMO, device)
+            _logger.debug(
+                "%s initializing microphone with user-defined audio device: %s",
+                _EMO,
+                device,
+            )
         else:
             selected_device = self._detect_microphone_device()
             self._device = selected_device
-            _logger.debug("%s initializing microphone with auto-detected audio device: %s", _EMO, selected_device)
+            _logger.debug(
+                "%s initializing microphone with auto-detected audio device: %s",
+                _EMO,
+                selected_device,
+            )
 
         _logger.debug(
             "%s initialized microphone with config: rate=%s channels=%s device=%s",
@@ -145,14 +157,24 @@ class MicrophoneController:
 
     def pause(self) -> None:
         """Pause microphone recording."""
-        if self._mic_process and self._mic_process.poll() is None and self._is_started and not self._is_paused:
+        if (
+            self._mic_process
+            and self._mic_process.poll() is None
+            and self._is_started
+            and not self._is_paused
+        ):
             self._mic_process.send_signal(signal.SIGSTOP)
             self._is_paused = True
             _logger.debug("%s microphone paused", _EMO)
 
     def resume(self) -> None:
         """Resume microphone recording."""
-        if self._mic_process and self._mic_process.poll() is None and self._is_started and self._is_paused:
+        if (
+            self._mic_process
+            and self._mic_process.poll() is None
+            and self._is_started
+            and self._is_paused
+        ):
             self._mic_process.send_signal(signal.SIGCONT)
             self._is_paused = False
             _logger.debug("%s microphone resumed", _EMO)
