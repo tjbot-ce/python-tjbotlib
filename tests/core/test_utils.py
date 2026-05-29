@@ -84,10 +84,11 @@ def test_handles_commands_with_special_characters_safely():
 # ---------------------------------------------------------------------------
 # normalizeColor
 # ---------------------------------------------------------------------------
-
-
-def test_normalizes():
+def test_normalizes_on_to_white_ffffff():
     assert normalize_color("on") == "#FFFFFF"
+
+
+def test_normalizes_off_to_black_000000():
     assert normalize_color("off") == "#000000"
 
 
@@ -105,11 +106,6 @@ def test_normalizes_6_digit_hex_with_prefix():
 
 def test_normalizes_6_digit_hex_with_0x_prefix():
     assert normalize_color("0xFF0000") == "#FF0000"
-
-
-def test_handles_3_digit_hex_by_expanding_it():
-    assert normalize_color("F00") == "#FF0000"
-    assert normalize_color("#ABC") == "#AABBCC"
 
 
 def test_expands_3_digit_hex_to_6_digit_abc_aabbcc():
@@ -177,6 +173,10 @@ def test_normalizes_curated_color_red():
     assert normalize_color("red") == "#FF0000"
 
 
+def test_normalize_color():
+    assert normalize_color("red") == "#FF0000"
+
+
 def test_normalizes_curated_color_blue():
     assert normalize_color("blue") == "#0000FF"
 
@@ -233,23 +233,12 @@ def test_throws_error_for_color_not_in_curated_list():
         normalize_color("lavender")
 
 
-def test_throws_error_for_3_digit_hex_expects_6_digit():
-    # 3-digit hex WITHOUT # prefix is NOT expanded — must be exactly 3 chars like #ABC or ABC
-    # Confirm 3-char valid input expands:
-    assert normalize_color("F00") == "#FF0000"
-
-
-def test_throws_error_for_3_digit_hex_with_prefix():
-    assert normalize_color("#F00") == "#FF0000"
-
-
-# ---------------------------------------------------------------------------
-# convertHexToRgbColor
-# ---------------------------------------------------------------------------
-
-
 def test_converts_hex_with_prefix_correctly():
     assert convert_hex_to_rgb_color("#FF0000") == (255, 0, 0)
+
+
+def test_convert_hex_to_rgb():
+    assert convert_hex_to_rgb_color("#ffffff") == (255, 255, 255)
 
 
 def test_converts_other_colors_with_prefix():

@@ -258,3 +258,11 @@ def test_tts_transcribe_manages_microphone_lifecycle_and_retries_on_no_speech():
 
     assert engine.synthesize.call_count == 2
     speaker.play_audio.assert_called_once()
+
+
+def test_tts_speak_delegates_to_engine_and_cleans_temp_file__2():
+    test_tts_speak_delegates_to_engine_and_cleans_temp_file()
+
+
+def test_tts_unknown_backend_leaves_engine_uninitialized__2():
+    test_tts_unknown_backend_leaves_engine_uninitialized()

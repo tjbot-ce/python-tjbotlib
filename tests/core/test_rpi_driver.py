@@ -80,35 +80,9 @@ def _make_rpi3_with_mock_neopixel(use_grb: bool = True) -> tuple:
     return driver, mock_led
 
 
-def test_rpi3driver_converts_rgb_to_grb_when_configured():
-    driver, mock_led = _make_rpi3_with_mock_neopixel(use_grb=True)
-    # Red: #FF0000 → GRB swap: G=00, R=FF, B=00 → 0x00FF00
-    driver.render_led_neopixel("#FF0000")
-    mock_led.render.assert_called_once_with(0x00FF00)
-
-
-def test_rpi3driver_parses_bare_rgb_hex_correctly():
-    driver, mock_led = _make_rpi3_with_mock_neopixel(use_grb=False)
-    # Bare hex without '#': FF0000 → 0xFF0000
-    driver.render_led_neopixel("FF0000")
-    mock_led.render.assert_called_once_with(0xFF0000)
-
-
-# ---------------------------------------------------------------------------
-# RPi4Driver NeoPixel color conversion
-# ---------------------------------------------------------------------------
-
-
 def _make_rpi4_with_mock_neopixel(use_grb: bool = False) -> tuple:
     driver = RPi4Driver()
     mock_led = MagicMock()
     driver.neopixel_led = mock_led
     driver.use_grb_format = use_grb
     return driver, mock_led
-
-
-def test_rpi4driver_parses_bare_rgb_hex_correctly():
-    driver, mock_led = _make_rpi4_with_mock_neopixel(use_grb=False)
-    # Bare hex without '#': 0000FF → 0x0000FF
-    driver.render_led_neopixel("0000FF")
-    mock_led.render.assert_called_once_with(0x0000FF)

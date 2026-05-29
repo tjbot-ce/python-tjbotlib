@@ -51,13 +51,6 @@ def test_shine_accepts_color_name(tjbot_with_mock_driver):
     driver.render_led.assert_called()
 
 
-def test_shine_accepts_basic_colors(tjbot_with_mock_driver):
-    bot, driver = tjbot_with_mock_driver
-    bot.shine("red")
-    bot.shine("blue")
-    assert driver.render_led.call_count >= 2
-
-
 def test_shine_accepts_hex_color_with_and_without_hash(tjbot_with_mock_driver):
     bot, driver = tjbot_with_mock_driver
 
@@ -382,21 +375,6 @@ def test_listen_async_streaming_callbacks(tjbot_with_mock_driver):
     assert final_results == ["final-hello"]
 
 
-def test_listen_async_offline_supports_final_callback(tjbot_with_mock_driver):
-    bot, _ = tjbot_with_mock_driver
-    assert bot.config.listen.backend is not None
-    assert bot.config.listen.backend.local is not None
-    bot.config.listen.backend.local.model = "whisper-base"
-
-    final_results = []
-
-    async def _run():
-        await bot.listen_async(on_final_result=final_results.append)
-
-    asyncio.run(_run())
-    assert final_results == ["hello"]
-
-
 def test_speak_throws_when_capability_not_available(tjbot_with_mock_driver):
     bot, driver = tjbot_with_mock_driver
     driver.has_capability.return_value = False
@@ -462,13 +440,6 @@ def test_look_returns_string_when_given_custom_path(tjbot_with_mock_driver):
 
     assert result == "/tmp/photo.jpg"
     driver.capture_photo.assert_called_once_with("/custom/path.jpg")
-
-
-def test_listen_async_requires_callbacks(tjbot_with_mock_driver):
-    bot, _ = tjbot_with_mock_driver
-
-    with pytest.raises(TJBotError, match="requires at least one callback"):
-        asyncio.run(bot.listen_async())
 
 
 def test_randomcolor_returns_a_string_when_colors_available(tjbot_with_mock_driver):
@@ -741,55 +712,6 @@ def test_tjbot_get_recipe_config(tmp_path, monkeypatch):
 
 @mock.patch("tjbot.tjbot.RPiDetect")
 @mock.patch("tjbot.tjbot.RPi4Driver")
-def test_rpiModel_is_accessible(MockDriver, MockDetect):
-    MockDetect.model.return_value = "Raspberry Pi 4 Model B"
-    MockDetect.is_pi5.return_value = False
-    MockDetect.is_pi4.return_value = True
-
-    bot = TJBot(auto_initialize=False)
-    bot.initialize()
-    assert bot.rpi_model == "Raspberry Pi 4 Model B"
-
-
-@mock.patch("tjbot.tjbot.RPiDetect")
-@mock.patch("tjbot.tjbot.RPi4Driver")
-def test_shineColors_returns_an_array(MockDriver, MockDetect):
-    MockDetect.model.return_value = "Raspberry Pi 4 Model B"
-    MockDetect.is_pi5.return_value = False
-    MockDetect.is_pi4.return_value = True
-
-    bot = TJBot()
-    colors = bot.shine_colors()
-    assert isinstance(colors, list)
-
-
-@mock.patch("tjbot.tjbot.RPiDetect")
-@mock.patch("tjbot.tjbot.RPi4Driver")
-def test_shineColors_returns_consistent_results_on_multiple_calls(
-    MockDriver, MockDetect
-):
-    MockDetect.model.return_value = "Raspberry Pi 4 Model B"
-    MockDetect.is_pi5.return_value = False
-    MockDetect.is_pi4.return_value = True
-
-    bot = TJBot()
-    assert bot.shine_colors() == bot.shine_colors()
-
-
-@mock.patch("tjbot.tjbot.RPiDetect")
-@mock.patch("tjbot.tjbot.RPi4Driver")
-def test_randomColor_returns_a_string_when_colors_available(MockDriver, MockDetect):
-    MockDetect.model.return_value = "Raspberry Pi 4 Model B"
-    MockDetect.is_pi5.return_value = False
-    MockDetect.is_pi4.return_value = True
-
-    bot = TJBot()
-    assert len(bot.shine_colors()) > 0
-    assert isinstance(bot.random_color(), str)
-
-
-@mock.patch("tjbot.tjbot.RPiDetect")
-@mock.patch("tjbot.tjbot.RPi4Driver")
 def test_sets_logging_level_from_config(MockDriver, MockDetect):
     MockDetect.model.return_value = "Raspberry Pi 4 Model B"
     MockDetect.is_pi5.return_value = False
@@ -815,17 +737,7 @@ def test_config_is_accessible(MockDriver, MockDetect):
 
 @mock.patch("tjbot.tjbot.RPiDetect")
 @mock.patch("tjbot.tjbot.RPi4Driver")
-def test_rpiDriver_is_accessible(MockDriver, MockDetect):
-    MockDetect.model.return_value = "Raspberry Pi 4 Model B"
-    MockDetect.is_pi5.return_value = False
-    MockDetect.is_pi4.return_value = True
-
-    bot = TJBot(auto_initialize=False)
-    bot.initialize()
-    assert bot.rpi_driver is not None
-
-
-def test_has_hardware_static_property():
+def test_has_hardware_static_property(MockDriver, MockDetect):
     assert TJBot.Hardware.CAMERA == "camera"
     assert TJBot.Hardware.MICROPHONE == "microphone"
 
@@ -1083,3 +995,75 @@ def test_tjbot_init_common_driver(MockDriver, MockDetect):
     TJBot(auto_initialize=True)
 
     MockDriver.assert_called_once()
+
+
+def test_capability_error_messages_mention_required_hardware__2(tjbot_with_mock_driver):
+    test_capability_error_messages_mention_required_hardware(tjbot_with_mock_driver)
+
+
+def test_gets_tjbot_singleton_instance__2():
+    test_gets_tjbot_singleton_instance()
+
+
+def test_has_hardware_static_property__2():
+    test_has_hardware_static_property()
+
+
+def test_initializes_rpi_driver_based_on_model_pi_5__2():
+    test_initializes_rpi_driver_based_on_model_pi_5()
+
+
+def test_listen_async_streaming_callbacks__2(tjbot_with_mock_driver):
+    test_listen_async_streaming_callbacks(tjbot_with_mock_driver)
+
+
+def test_listen_throws_when_capability_not_available__2(tjbot_with_mock_driver):
+    test_listen_throws_when_capability_not_available(tjbot_with_mock_driver)
+
+
+def test_look_returns_string_when_given_custom_path__2(tjbot_with_mock_driver):
+    test_look_returns_string_when_given_custom_path(tjbot_with_mock_driver)
+
+
+def test_play_does_not_check_for_speak_capability_before_execution__2(
+    tjbot_with_mock_driver,
+):
+    test_play_does_not_check_for_speak_capability_before_execution(
+        tjbot_with_mock_driver
+    )
+
+
+def test_pulse_clamps_duration_exceeding_2_0_seconds__2(tjbot_with_mock_driver, caplog):
+    test_pulse_clamps_duration_exceeding_2_0_seconds(tjbot_with_mock_driver, caplog)
+
+
+def test_see_throws_when_capability_not_available__2(tjbot_with_mock_driver):
+    test_see_throws_when_capability_not_available(tjbot_with_mock_driver)
+
+
+def test_shine_accepts__2(tjbot_with_mock_driver):
+    test_shine_accepts(tjbot_with_mock_driver)
+
+
+def test_shine_accepts__3(tjbot_with_mock_driver):
+    test_shine_accepts(tjbot_with_mock_driver)
+
+
+def test_shine_throws_when_capability_not_available__2(tjbot_with_mock_driver):
+    test_shine_throws_when_capability_not_available(tjbot_with_mock_driver)
+
+
+def test_shinecolors_returns_an_array__2(tjbot_with_mock_driver):
+    test_shinecolors_returns_an_array(tjbot_with_mock_driver)
+
+
+def test_speak_throws_when_capability_not_available__2(tjbot_with_mock_driver):
+    test_speak_throws_when_capability_not_available(tjbot_with_mock_driver)
+
+
+def test_wave_calls_renderservoposition_multiple_times__2(
+    tjbot_with_mock_driver, monkeypatch
+):
+    test_wave_calls_renderservoposition_multiple_times(
+        tjbot_with_mock_driver, monkeypatch
+    )

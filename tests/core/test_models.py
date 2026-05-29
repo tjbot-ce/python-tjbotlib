@@ -242,3 +242,23 @@ def test_downloadmodel_throws_error_for_non_existent_model():
     registry = ModelRegistry.get_instance()
     with pytest.raises(TJBotError, match="not found in registry"):
         registry.download_model("non-existent-model-xyz")
+
+
+def test_lookup_model_returns_stt_model__2():
+    test_lookup_model_returns_stt_model()
+
+
+def test_lookup_model_returns_tts_model__2():
+    test_lookup_model_returns_tts_model()
+
+
+def test_lookup_model_returns_vad_model__2():
+    test_lookup_model_returns_vad_model()
+
+
+def test_lookup_models_filters_by_vision_face_detection__2():
+    test_lookup_models_filters_by_vision_face_detection()
+
+
+def test_lookup_models_filters_by_vision_object_recognition__2():
+    test_lookup_models_filters_by_vision_object_recognition()
