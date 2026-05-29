@@ -1,3 +1,4 @@
+import errno
 import re
 import signal
 import subprocess
@@ -28,7 +29,13 @@ class _MicrophoneInputStream:
             if not process.stdout:
                 break
 
-            chunk = process.stdout.read(chunk_bytes)
+            try:
+                chunk = process.stdout.read(chunk_bytes)
+            except OSError as error:
+                if error.errno == errno.EBADF:
+                    _logger.debug("%s microphone stream closed during shutdown", _EMO)
+                    break
+                raise
             if not chunk:
                 break
 
@@ -40,7 +47,13 @@ class _MicrophoneInputStream:
         if not process or not process.stdout or not self._controller._is_started:
             return b""
 
-        chunk = process.stdout.read(size)
+        try:
+            chunk = process.stdout.read(size)
+        except OSError as error:
+            if error.errno == errno.EBADF:
+                _logger.debug("%s microphone stream closed during shutdown", _EMO)
+                return b""
+            raise
         return chunk or b""
 
 
@@ -184,19 +197,21 @@ class MicrophoneController:
         if not self._mic_process:
             return
 
-        if self._mic_process.poll() is None:
-            self._mic_process.terminate()
-            try:
-                self._mic_process.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                self._mic_process.kill()
-
-        if self._mic_process.stdout:
-            self._mic_process.stdout.close()
-
-        self._mic_process = None
+        process = self._mic_process
         self._is_started = False
         self._is_paused = False
+
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+        if process.stdout:
+            process.stdout.close()
+
+        self._mic_process = None
         _logger.debug("%s microphone stopped", _EMO)
 
     def get_input_stream(self) -> _MicrophoneInputStream:

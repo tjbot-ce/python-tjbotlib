@@ -1,3 +1,4 @@
+import os
 from typing import Any, Iterable, Iterator, Optional
 
 import logging
@@ -25,6 +26,22 @@ _SUPPORTED_GOOGLE_STT_MODEL_REGIONS: dict[str, list[str]] = {
 }
 
 _MAX_AUDIO_CHUNK_BYTES = 25600
+
+
+def _resolve_google_project_id() -> str:
+    env_project_id = (
+        os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCLOUD_PROJECT") or ""
+    ).strip()
+    if env_project_id:
+        return env_project_id
+
+    try:
+        from google.auth import default as google_auth_default
+
+        _, project_id = google_auth_default()
+        return (project_id or "").strip()
+    except Exception:
+        return ""
 
 
 def _assert_supported_model_and_region(model: str, region: str) -> None:
@@ -111,6 +128,7 @@ class GoogleCloudSTTEngine(STTEngine):
         self.microphone_rate = 44100
         self.microphone_channels = 2
         self.client: Any = None
+        self.project_id = ""
 
     def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
         if SpeechClient is None:
@@ -143,6 +161,11 @@ class GoogleCloudSTTEngine(STTEngine):
 
         credentials_path = (cfg.credentials_path or "") if cfg else ""
         load_google_cloud_credentials(credentials_path)
+        self.project_id = _resolve_google_project_id()
+        if not self.project_id:
+            raise TJBotError(
+                "Google Cloud project_id could not be determined. Set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or provide credentials discoverable via Application Default Credentials."
+            )
 
         endpoint = f"{region}-speech.googleapis.com"
         try:
@@ -183,8 +206,7 @@ class GoogleCloudSTTEngine(STTEngine):
             cfg.interim_results if (cfg and cfg.interim_results is not None) else True
         )
 
-        project_id = self.client.get_project_id()  # type: ignore[attr-defined]
-        recognizer_path = f"projects/{project_id}/locations/{region}/recognizers/_"
+        recognizer_path = f"projects/{self.project_id}/locations/{region}/recognizers/_"
 
         logger.debug(
             "Transcribing with Google Cloud STT v2 (model=%s, language=%s, recognizer=%s)",

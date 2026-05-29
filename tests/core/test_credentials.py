@@ -28,7 +28,10 @@ def test_resolve_credentials_path_not_found_raises(tmp_path, monkeypatch):
 
 def test_load_google_cloud_credentials_sets_env(tmp_path):
     cred_file = tmp_path / "google-credentials.json"
-    cred_file.write_text('{"type": "service_account"}\n', encoding="utf-8")
+    cred_file.write_text(
+        '{"type": "service_account", "project_id": "demo-project"}\n',
+        encoding="utf-8",
+    )
 
     out = load_google_cloud_credentials(str(cred_file))
     assert out["credentialsPath"] == str(cred_file)

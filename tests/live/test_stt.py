@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for script execution
@@ -13,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 
 from tjbot import TJBot
 from tjbot.utils import ModelRegistry
+from tjbot.utils.errors import TJBotError
 from tjbot.utils.sherpa_runtime import load_sherpa_onnx_module
 
 try:
@@ -93,35 +95,70 @@ def run_test():
 
     # Main loop: continuously listen until user presses Ctrl+C
     is_shutting_down = False
+    shutdown_event = threading.Event()
+
+    driver = getattr(tjbot, "rpi_driver", None)
+    stt_controller = getattr(driver, "stt_controller", None) if driver else None
+    if stt_controller is None:
+        print("✗ STT controller is unavailable after TJBot initialization")
+        sys.exit(1)
+
+    def stop_live_microphone() -> None:
+        stop_mic = getattr(driver, "stop_mic", None) if driver is not None else None
+        if callable(stop_mic):
+            try:
+                stop_mic()
+            except Exception:
+                pass
 
     def handle_sigint(signum, frame):
         nonlocal is_shutting_down
+        _ = signum, frame
         if not is_shutting_down:
             is_shutting_down = True
+            shutdown_event.set()
             print(f"\n{COLORS['YELLOW']}Shutting down...{COLORS['RESET']}")
-            sys.exit(0)
+            stop_live_microphone()
 
     signal.signal(signal.SIGINT, handle_sigint)
 
     try:
         while not is_shutting_down:
             try:
-                transcript = tjbot.listen()
+                transcript = stt_controller.transcribe(
+                    abort_signal=shutdown_event
+                ).strip()
+                if is_shutting_down:
+                    break
                 if transcript:
                     print(
                         f"{COLORS['BRIGHT']}{COLORS['GREEN']}Final: {transcript}{COLORS['RESET']}"
                     )
+            except TJBotError as error:
+                if error.code == "stt.aborted" and is_shutting_down:
+                    break
+                raise
             except Exception as error:
                 if not is_shutting_down:
                     print(
                         f"{COLORS['YELLOW']}Error during transcription: {error}{COLORS['RESET']}"
                     )
                     is_shutting_down = True
+                    shutdown_event.set()
+                    stop_live_microphone()
                     sys.exit(1)
+    except KeyboardInterrupt:
+        is_shutting_down = True
+        shutdown_event.set()
+        print(f"\n{COLORS['YELLOW']}Shutting down...{COLORS['RESET']}")
+        stop_live_microphone()
     except Exception as error:
         if not is_shutting_down:
             print(f"✗ STT test failed: {error}")
             sys.exit(1)
+    finally:
+        shutdown_event.set()
+        stop_live_microphone()
 
 
 def list_alsa_input_devices() -> List[Dict[str, str]]:
@@ -312,9 +349,12 @@ def build_listen_config(
     selected_device: Optional[str],
 ) -> Dict[str, Any]:
     listen_config: Dict[str, Any] = {
+        # Mirror node-tjbotlib live STT harness defaults for all backends.
+        "microphoneRate": 16000,
+        "microphoneChannels": 1,
         "backend": {
             "type": selected_backend,
-        }
+        },
     }
 
     if selected_device:

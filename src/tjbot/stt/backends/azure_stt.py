@@ -79,6 +79,11 @@ class AzureSTTEngine(STTEngine):
         abort_signal = options.get("abort_signal")
         on_partial_result = options.get("on_partial_result")
         on_final_result = options.get("on_final_result")
+        interim_results = bool(
+            getattr(self.backend_config, "interim_results", False)
+            if self.backend_config
+            else False
+        )
 
         self.raise_if_aborted(options)
 
@@ -89,7 +94,7 @@ class AzureSTTEngine(STTEngine):
             channels=self.microphone_channels,
         )
         push_stream = speechsdk.audio.PushAudioInputStream(stream_format=stream_format)
-        audio_config = speechsdk.audio.AudioConfig(stream_input=push_stream)
+        audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
 
         recognizer = speechsdk.SpeechRecognizer(
             speech_config=self.speech_config, audio_config=audio_config
@@ -122,6 +127,10 @@ class AzureSTTEngine(STTEngine):
                 final_transcript.append(text)
                 if on_final_result:
                     on_final_result(text)
+                # When not streaming interim results, resolve on the first final result
+                # (equivalent to Node's recognizeOnceAsync)
+                if not interim_results:
+                    done_event.set()
 
         def recognizing_cb(evt):
             nonlocal latest_partial

@@ -220,9 +220,11 @@ class SherpaONNXSTTEngine(STTEngine):
                 )
             return transcript
         except Exception as e:
-            logger.error(f"Sherpa STT error: {e}")
             if isinstance(e, TJBotError):
+                if e.code != "stt.aborted":
+                    logger.error(f"Sherpa STT error: {e}")
                 raise
+            logger.error(f"Sherpa STT error: {e}")
             raise TJBotError(f"Sherpa STT error: {e}", cause=e)
 
     def _should_use_vad(self) -> bool:
@@ -249,6 +251,36 @@ class SherpaONNXSTTEngine(STTEngine):
         )
         return sherpa_onnx.VoiceActivityDetector(config, buffer_size_in_seconds=60)
 
+    @staticmethod
+    def _vad_queue_empty(vad: Any) -> bool:
+        """Return True when the sherpa VAD segment queue is empty across API variants."""
+        empty = getattr(vad, "empty", None)
+        if callable(empty):
+            return bool(empty())
+
+        is_empty = getattr(vad, "is_empty", None)
+        if callable(is_empty):
+            return bool(is_empty())
+
+        raise TJBotError("Sherpa VAD object does not expose an empty()/is_empty() API")
+
+    @staticmethod
+    def _vad_front(vad: Any) -> Any:
+        """Return the next VAD segment across sherpa API variants."""
+        front = getattr(vad, "front", None)
+        if front is None:
+            raise TJBotError("Sherpa VAD object does not expose a front API")
+        return front() if callable(front) else front
+
+    @staticmethod
+    def _vad_pop(vad: Any) -> None:
+        """Advance the VAD queue across sherpa API variants."""
+        pop = getattr(vad, "pop", None)
+        if pop is None:
+            raise TJBotError("Sherpa VAD object does not expose a pop API")
+        if callable(pop):
+            pop()
+
     def _transcribe_offline_with_vad(
         self,
         audio_stream: Iterable[bytes],
@@ -267,9 +299,9 @@ class SherpaONNXSTTEngine(STTEngine):
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
             vad.accept_waveform(samples)
 
-            while not vad.is_empty():
-                segment = vad.front()
-                vad.pop()
+            while not self._vad_queue_empty(vad):
+                segment = self._vad_front(vad)
+                self._vad_pop(vad)
 
                 stream = recognizer.create_stream()
                 stream.accept_waveform(sample_rate, segment.samples)
@@ -283,6 +315,8 @@ class SherpaONNXSTTEngine(STTEngine):
                         on_final_result(text)
                     return text
 
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
         return ""
 
     def _transcribe_offline_energy(
@@ -330,12 +364,12 @@ class SherpaONNXSTTEngine(STTEngine):
                 speech_chunks.clear()
                 silence_ms = 0.0
 
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
+
         # Stream ended — decode whatever is left
         if speech_chunks:
             combined = np.concatenate(speech_chunks)
-            # Tail padding improves recognition at stream end
-            tail = np.zeros(int(sample_rate * 0.5), dtype=np.float32)
-            combined = np.concatenate([combined, tail])
             stream = recognizer.create_stream()
             stream.accept_waveform(sample_rate, combined)
             recognizer.decode_stream(stream)
@@ -345,6 +379,8 @@ class SherpaONNXSTTEngine(STTEngine):
                     on_final_result(text)
                 return text
 
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
         return ""
 
     def _transcribe_online(
@@ -390,6 +426,9 @@ class SherpaONNXSTTEngine(STTEngine):
                 recognizer.reset(stream)
                 return final_text
 
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
+
         stream.input_finished()
         while recognizer.is_ready(stream):
             recognizer.decode_stream(stream)
@@ -398,4 +437,6 @@ class SherpaONNXSTTEngine(STTEngine):
             final_text = text
             if on_final_result:
                 on_final_result(text)
+        if self._is_abort_signal_set(abort_signal):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
         return final_text

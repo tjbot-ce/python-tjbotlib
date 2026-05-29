@@ -71,7 +71,7 @@ class STTBackendConfig(TJBotBaseModel):
 class ListenConfig(TJBotBaseModel):
     device: Optional[str] = None
     microphone_rate: Optional[int] = Field(default=44100, alias="microphoneRate")
-    microphone_channels: Optional[int] = Field(default=1, alias="microphoneChannels")
+    microphone_channels: Optional[int] = Field(default=2, alias="microphoneChannels")
     model: Optional[str] = None
     backend: Optional[STTBackendConfig] = None
 

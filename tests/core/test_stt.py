@@ -211,6 +211,290 @@ def test_stt_backend_init_error_propagates(monkeypatch):
         STTController(config)
 
 
+def test_watson_transcribe_wraps_audio_in_audiosource_and_parses_final_list(
+    monkeypatch,
+):
+    from tjbot.stt.backends import watson_stt
+
+    captured = {}
+
+    class FakeAudioSource:
+        def __init__(self, input_stream, is_recording=False, is_buffer=False):
+            self.input = input_stream
+            self.is_recording = is_recording
+            self.is_buffer = is_buffer
+
+    class FakeWatsonService:
+        def recognize_using_websocket(self, **kwargs):
+            captured["audio"] = kwargs["audio"]
+            assert kwargs["audio"].input.read(4) == b"abcd"
+            kwargs["recognize_callback"].on_transcription(
+                [{"transcript": "hello world"}]
+            )
+
+    monkeypatch.setattr(watson_stt, "AudioSource", FakeAudioSource)
+
+    engine = watson_stt.IBMWatsonSTTEngine(
+        STTBackendIBMWatsonConfig(model="en-US_BroadbandModel")
+    )
+    engine.service = FakeWatsonService()
+    engine.microphone_rate = 16000
+    engine.microphone_channels = 1
+
+    result = engine.transcribe(iter([b"abcd"]))
+
+    assert isinstance(captured["audio"], FakeAudioSource)
+    assert result == "hello world"
+
+
+def test_watson_transcribe_parses_object_style_results_payload(monkeypatch):
+    from tjbot.stt.backends import watson_stt
+
+    class FakeAudioSource:
+        def __init__(self, input_stream, is_recording=False, is_buffer=False):
+            self.input = input_stream
+            self.is_recording = is_recording
+            self.is_buffer = is_buffer
+
+    class Alt:
+        def __init__(self, transcript):
+            self.transcript = transcript
+
+    class Result:
+        def __init__(self, transcript, final=True):
+            self.alternatives = [Alt(transcript)]
+            self.final = final
+
+    class Payload:
+        def __init__(self, transcript):
+            self.results = [Result(transcript, final=True)]
+
+    class FakeWatsonService:
+        def recognize_using_websocket(self, **kwargs):
+            kwargs["recognize_callback"].on_transcription(Payload("hello object world"))
+
+    monkeypatch.setattr(watson_stt, "AudioSource", FakeAudioSource)
+
+    engine = watson_stt.IBMWatsonSTTEngine(
+        STTBackendIBMWatsonConfig(model="en-US_BroadbandModel")
+    )
+    engine.service = FakeWatsonService()
+    engine.microphone_rate = 16000
+    engine.microphone_channels = 1
+
+    result = engine.transcribe(iter([b"abcd"]))
+
+    assert result == "hello object world"
+
+
+def test_watson_transcribe_consumes_raw_data_results_payload(monkeypatch):
+    from tjbot.stt.backends import watson_stt
+
+    class FakeAudioSource:
+        def __init__(self, input_stream, is_recording=False, is_buffer=False):
+            self.input = input_stream
+            self.is_recording = is_recording
+            self.is_buffer = is_buffer
+
+    class FakeWatsonService:
+        def recognize_using_websocket(self, **kwargs):
+            kwargs["recognize_callback"].on_data(
+                {
+                    "results": [
+                        {
+                            "final": True,
+                            "alternatives": [{"transcript": "hello from data"}],
+                        }
+                    ]
+                }
+            )
+
+    monkeypatch.setattr(watson_stt, "AudioSource", FakeAudioSource)
+
+    engine = watson_stt.IBMWatsonSTTEngine(
+        STTBackendIBMWatsonConfig(model="en-US_BroadbandModel")
+    )
+    engine.service = FakeWatsonService()
+    engine.microphone_rate = 16000
+    engine.microphone_channels = 1
+
+    result = engine.transcribe(iter([b"abcd"]))
+
+    assert result == "hello from data"
+
+
+def test_google_cloud_transcribe_uses_runtime_resolved_project_id(
+    monkeypatch,
+):
+    from tjbot.stt.backends import google_cloud_stt
+
+    captured = {}
+
+    class FakeSpeechClient:
+        def __init__(self, client_options=None):
+            captured["endpoint"] = client_options["api_endpoint"]
+
+        def streaming_recognize(self, requests):
+            first_request = next(requests)
+            captured["recognizer"] = first_request.recognizer
+            return [
+                types.SimpleNamespace(
+                    results=[
+                        types.SimpleNamespace(
+                            alternatives=[
+                                types.SimpleNamespace(transcript="hello world")
+                            ],
+                            is_final=True,
+                        )
+                    ]
+                )
+            ]
+
+    class _Message:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    fake_cs = types.SimpleNamespace(
+        StreamingRecognitionConfig=_Message,
+        RecognitionConfig=_Message,
+        RecognitionFeatures=_Message,
+        StreamingRecognitionFeatures=_Message,
+        StreamingRecognizeRequest=_Message,
+        ExplicitDecodingConfig=types.SimpleNamespace(
+            AudioEncoding=types.SimpleNamespace(LINEAR16="LINEAR16"),
+        ),
+    )
+    fake_cs.ExplicitDecodingConfig = type(
+        "ExplicitDecodingConfig",
+        (),
+        {
+            "AudioEncoding": types.SimpleNamespace(LINEAR16="LINEAR16"),
+            "__init__": lambda self, **kwargs: self.__dict__.update(kwargs),
+        },
+    )
+
+    monkeypatch.setattr(google_cloud_stt, "SpeechClient", FakeSpeechClient)
+    monkeypatch.setattr(google_cloud_stt, "cs", fake_cs)
+    monkeypatch.setattr(
+        google_cloud_stt,
+        "load_google_cloud_credentials",
+        lambda _path: {"credentialsPath": "/tmp/google-credentials.json"},
+    )
+    monkeypatch.setattr(
+        google_cloud_stt,
+        "_resolve_google_project_id",
+        lambda: "test-project",
+    )
+
+    engine = google_cloud_stt.GoogleCloudSTTEngine(
+        STTBackendGoogleCloudConfig(
+            model="chirp_3",
+            language_code="en-US",
+            region="us",
+        )
+    )
+    engine.initialize(16000, 1)
+
+    result = engine.transcribe(iter([b"abcd"]))
+
+    assert captured["endpoint"] == "us-speech.googleapis.com"
+    assert captured["recognizer"] == "projects/test-project/locations/us/recognizers/_"
+    assert result == "hello world"
+
+
+def test_azure_transcribe_uses_audio_config_stream_argument(monkeypatch):
+    from tjbot.stt.backends import azure_stt
+
+    captured = {}
+
+    class FakeEventSignal:
+        def __init__(self):
+            self._callbacks = []
+
+        def connect(self, callback):
+            self._callbacks.append(callback)
+
+        def emit(self, evt):
+            for callback in list(self._callbacks):
+                callback(evt)
+
+    class FakePushAudioInputStream:
+        def __init__(self, stream_format=None):
+            captured["stream_format"] = stream_format
+            self.closed = False
+
+        def write(self, chunk):
+            captured.setdefault("chunks", []).append(chunk)
+
+        def close(self):
+            self.closed = True
+
+    class FakeAudioConfig:
+        def __init__(self, **kwargs):
+            captured["audio_config_kwargs"] = kwargs
+
+    class FakeSpeechRecognizer:
+        def __init__(self, speech_config=None, audio_config=None):
+            _ = speech_config, audio_config
+            self.recognized = FakeEventSignal()
+            self.recognizing = FakeEventSignal()
+            self.canceled = FakeEventSignal()
+            self.session_stopped = FakeEventSignal()
+
+        def start_continuous_recognition(self):
+            evt = types.SimpleNamespace(
+                result=types.SimpleNamespace(
+                    reason="RecognizedSpeech",
+                    text="hello azure",
+                )
+            )
+            self.recognized.emit(evt)
+            self.session_stopped.emit(types.SimpleNamespace())
+
+        def stop_continuous_recognition(self):
+            return None
+
+    class FakeSpeechConfig:
+        def __init__(self, subscription=None, region=None):
+            captured["speech_config"] = {
+                "subscription": subscription,
+                "region": region,
+            }
+            self.speech_recognition_language = None
+
+    fake_speechsdk = types.SimpleNamespace(
+        SpeechConfig=FakeSpeechConfig,
+        SpeechRecognizer=FakeSpeechRecognizer,
+        ResultReason=types.SimpleNamespace(
+            RecognizedSpeech="RecognizedSpeech",
+            RecognizingSpeech="RecognizingSpeech",
+        ),
+        audio=types.SimpleNamespace(
+            AudioStreamFormat=lambda **kwargs: types.SimpleNamespace(**kwargs),
+            PushAudioInputStream=FakePushAudioInputStream,
+            AudioConfig=FakeAudioConfig,
+        ),
+    )
+
+    monkeypatch.setattr(azure_stt, "speechsdk", fake_speechsdk)
+    monkeypatch.setattr(
+        azure_stt,
+        "load_azure_credentials",
+        lambda _path: {"speechKey": "key", "speechRegion": "eastus"},
+    )
+
+    engine = azure_stt.AzureSTTEngine(STTBackendAzureConfig(language="en-US"))
+    engine.initialize(16000, 1)
+
+    result = engine.transcribe(iter([b"abcd"]))
+
+    assert captured["audio_config_kwargs"] == {
+        "stream": captured["audio_config_kwargs"]["stream"]
+    }
+    assert captured["chunks"] == [b"abcd"]
+    assert result == "hello azure"
+
+
 def test_stt_transcribe_delegates_to_engine():
     config = ListenConfig(backend=STTBackendConfig(type="none"))
     controller = STTController(config)
@@ -234,6 +518,29 @@ def test_stt_transcribe_delegates_to_engine():
             "on_partial_result": partial_cb,
             "on_final_result": final_cb,
             "abort_signal": None,
+        },
+    )
+
+
+def test_stt_transcribe_forwards_abort_signal_to_engine():
+    config = ListenConfig(backend=STTBackendConfig(type="none"))
+    controller = STTController(config)
+
+    fake_engine = MagicMock()
+    fake_engine.transcribe.return_value = ""
+    controller.engine = fake_engine
+
+    stream = iter([b"audio"])
+    abort_signal = MagicMock()
+
+    controller.transcribe(stream, abort_signal=abort_signal)
+
+    fake_engine.transcribe.assert_called_once_with(
+        stream,
+        {
+            "on_partial_result": None,
+            "on_final_result": None,
+            "abort_signal": abort_signal,
         },
     )
 
@@ -743,6 +1050,36 @@ class TestTranscribeOfflineEnergy:
 
 
 class TestTranscribeOfflineWithVad:
+    def test_handles_vad_front_property_and_pop_method(self, monkeypatch, tmp_path):
+        engine = _make_engine(
+            monkeypatch,
+            tmp_path,
+            vad_config=VADConfig(enabled=True, model="silero-vad"),
+        )
+        engine._vad_path = "/tmp/silero_vad.onnx"
+
+        samples = np.zeros(512, dtype=np.float32)
+        segment = types.SimpleNamespace(samples=samples)
+
+        class PropertyFrontVAD:
+            def __init__(self):
+                self._done = False
+                self.front = segment
+
+            def accept_waveform(self, _s):
+                pass
+
+            def empty(self):
+                return self._done
+
+            def pop(self):
+                self._done = True
+
+        engine._create_silero_vad = lambda _path: PropertyFrontVAD()
+
+        result = engine._transcribe_offline_with_vad(iter([b"\x00" * 1024]), None, None)
+        assert result == "hello world"
+
     def test_returns_empty_when_no_segments(self, monkeypatch, tmp_path):
         engine = _make_engine(
             monkeypatch,
