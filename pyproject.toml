@@ -35,6 +35,7 @@ build-backend = "hatchling.build"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-xdist>=3.8.0",
     "black>=24.0.0",
     "mypy>=1.8.0",
     "ruff>=0.1.0",
@@ -44,6 +45,7 @@ dev = [
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "pytest-xdist>=3.8.0",
     "black>=24.0.0",
     "mypy>=1.8.0",
     "ruff>=0.1.0",
@@ -62,7 +64,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "--tb=short"
 
 [tool.mypy]
 python_version = "3.11"

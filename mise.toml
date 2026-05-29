@@ -38,7 +38,7 @@ run = "if command -v markdownlint >/dev/null 2>&1; then markdownlint '**/*.md' -
 [tasks.test]
 description = "Run core unit tests"
 depends = ["build"]
-run = "uv run pytest tests/core"
+run = "uv run pytest -n auto --dist=loadfile tests/core"
 
 [tasks.test-coverage]
 description = "Run tests with coverage"

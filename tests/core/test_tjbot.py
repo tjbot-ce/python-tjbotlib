@@ -39,7 +39,9 @@ def tjbot_with_mock_driver(monkeypatch):
 
     TJBot._instance = None
     bot = TJBot(auto_initialize=False)
-    bot.initialize()
+    bot.rpi_model = "Raspberry Pi 4 Model B"
+    bot.rpi_driver = driver
+    bot._initialized = True
     return bot, driver
 
 
@@ -173,10 +175,13 @@ def test_pulse_accepts_boundary_duration_2_0_seconds(
     bot.pulse("red", 2.0)
 
 
-def test_pulse_clamps_duration_exceeding_2_0_seconds(tjbot_with_mock_driver, caplog):
+def test_pulse_clamps_duration_exceeding_2_0_seconds(
+    tjbot_with_mock_driver, caplog, monkeypatch
+):
     import logging
 
     bot, _ = tjbot_with_mock_driver
+    monkeypatch.setattr("tjbot.tjbot.tjbot_sleep", lambda *_args, **_kwargs: None)
 
     with caplog.at_level(logging.WARNING, logger="tjbot.tjbot"):
         bot.pulse("red", 2.5)
@@ -581,8 +586,11 @@ def test_pulse_async_drives_led_without_blocking_event_loop(
     assert driver.render_led.call_count >= 2
 
 
-def test_pulse_async_throws_when_duration_exceeds_max(tjbot_with_mock_driver):
+def test_pulse_async_throws_when_duration_exceeds_max(
+    tjbot_with_mock_driver, monkeypatch
+):
     bot, _ = tjbot_with_mock_driver
+    monkeypatch.setattr("tjbot.tjbot.tjbot_sleep", lambda *_args, **_kwargs: None)
 
     # Python implementation clamps >2.0s; this parity case checks that path does not crash.
     bot.pulse("red", 5.0)
@@ -1033,8 +1041,12 @@ def test_play_does_not_check_for_speak_capability_before_execution__2(
     )
 
 
-def test_pulse_clamps_duration_exceeding_2_0_seconds__2(tjbot_with_mock_driver, caplog):
-    test_pulse_clamps_duration_exceeding_2_0_seconds(tjbot_with_mock_driver, caplog)
+def test_pulse_clamps_duration_exceeding_2_0_seconds__2(
+    tjbot_with_mock_driver, caplog, monkeypatch
+):
+    test_pulse_clamps_duration_exceeding_2_0_seconds(
+        tjbot_with_mock_driver, caplog, monkeypatch
+    )
 
 
 def test_see_throws_when_capability_not_available__2(tjbot_with_mock_driver):
