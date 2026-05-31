@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterable, Callable, Optional, Any
+from typing import Iterable, Callable, Optional, Any, Dict
 import logging
 import numpy as np
 
@@ -12,7 +12,7 @@ sherpa_onnx: Any = None
 logger = logging.getLogger(__name__)
 
 
-def _model_paths(key: str, model_dir: Path) -> dict:
+def _model_paths(key: str, model_dir: Path) -> Dict[str, str]:
     """Return the file paths for a given model key, mirroring node pathsForModelKey."""
     if key.startswith("moonshine"):
         return {
@@ -235,7 +235,7 @@ class SherpaONNXSTTEngine(STTEngine):
         vad_enabled = getattr(vad_config, "enabled", True) if vad_config else True
         return bool(self._vad_path and vad_enabled)
 
-    def _create_silero_vad(self, model_path: str):
+    def _create_silero_vad(self, model_path: str) -> Any:
         """Create a Silero VAD instance. Mirrors Node createSileroVad()."""
         config = sherpa_onnx.VadModelConfig(
             silero_vad=sherpa_onnx.SileroVadModelConfig(

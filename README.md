@@ -1,6 +1,6 @@
 # TJBot Library (Python)
 
-[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Raspberry Pi Support](https://img.shields.io/badge/Raspberry%20Pi-3%2C%204%2C%205-red)](https://www.raspberrypi.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -15,12 +15,12 @@
 TJBot's core capabilities are:
 
 - **Listen** – Capture and transcribe speech with Speech-to-Text
-- **Look** – Take photos with an integrated camera
+- **See** – Take photos and analyze vision with an integrated camera (supports local ONNX backends for object detection, classification, and face detection)
 - **Shine** – Control an RGB LED in various colors and effects
 - **Speak** – Play audio and synthesize speech with Text-to-Speech
 - **Wave** – Move its arm using a servo motor
 
-This library supports both **local AI backends** (using sherpa-onnx for offline speech processing) and **IBM Watson cloud services** for more advanced capabilities.
+This library supports both **local AI backends** (using sherpa-onnx for offline speech processing and ONNX Runtime for vision tasks) and **IBM Watson cloud services** for more advanced capabilities.
 
 ## System Dependencies
 
@@ -50,6 +50,8 @@ pip install python-tjbotlib
 from tjbot import TJBot
 ```
 
+> **Note**: TJBot uses a singleton pattern. You can create an instance directly with `TJBot()` (recommended for simple use cases) or access the global instance with `TJBot.get_instance()` (useful for multi-module applications). The constructor defaults to `auto_initialize=True`, which will load configuration and initialize hardware immediately.
+
 ### Example 1: Control an LED
 
 This example initializes a NeoPixel LED and sets its color:
@@ -60,7 +62,13 @@ from tjbot import TJBot
 # Initialize with NeoPixel LED enabled via override config
 config = {
     "hardware": {
-        "led_neopixel": True
+        "led": True
+    },
+    "shine": {
+        "hasNeopixelLED": True,
+        "neopixel": {
+            "gpioPin": 18  # or your LED's GPIO pin
+        }
     }
 }
 tj = TJBot(override_config=config)
@@ -104,9 +112,14 @@ print('Speech demo complete!')
 
 ### Example 3: Change TJBot's Configuration
 
-TJBot automatically loads its configuration from the `tjbot.toml` file in your current working directory. Create this file to customize TJBot's behavior:
+TJBot loads configuration from multiple sources in this order of priority:
+1. Default configuration (bundled with the library)
+2. User configuration from `~/.tjbot/tjbot.toml` (your home directory)
+3. Recipe configuration from `recipe.toml` (current working directory, if present)
 
-**tjbot.toml:**
+Create a `~/.tjbot/tjbot.toml` file in your home directory to customize TJBot's behavior:
+
+**~/.tjbot/tjbot.toml:**
 
 ```toml
 [log]
@@ -121,8 +134,8 @@ Then use it in your code:
 ```python
 from tjbot import TJBot
 
-# TJBot automatically loads tjbot.toml from the current directory
-# Assuming tjbot.toml enables led_neopixel
+# TJBot automatically loads from ~/.tjbot/tjbot.toml
+# Assuming tjbot.toml enables hasNeopixelLED
 tj = TJBot()
 
 # Use the configured settings
@@ -130,9 +143,28 @@ tj.shine('cyan')
 tj.speak('TJBot is ready!')
 ```
 
+### Using `override_config` for Runtime Configuration
+
+You can also pass configuration directly to the `TJBot()` constructor using the `override_config` parameter. This configuration **merges with** the cascaded defaults (not replaces them):
+
+```python
+from tjbot import TJBot
+
+# Override specific settings at runtime
+config = {
+    "shine": {
+        "hasNeopixelLED": True,
+        "neopixel": {"gpioPin": 18}
+    }
+}
+tj = TJBot(override_config=config)
+
+# The final config is: defaults + ~/.tjbot/tjbot.toml + override_config
+```
+
 ## Configuration Reference
 
-TJBot uses [TOML](https://toml.io/en/) for configuration. By default, it looks for `tjbot.toml` in the current working directory. Create this file to override the default settings.
+TJBot uses [TOML](https://toml.io/en/) for configuration. User configuration is stored in `~/.tjbot/tjbot.toml` (your home directory). Recipe-specific overrides go in `recipe.toml` (current working directory, optional).
 
 The shared canonical config assets live in `vendor/tjbot-config` (git submodule), matching `node-tjbotlib`:
 

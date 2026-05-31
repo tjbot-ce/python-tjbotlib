@@ -183,19 +183,19 @@ class ONNXVisionEngine(VisionEngine):
             raise TJBotError(f"Failed to load model: {model_name}")
         return model
 
-    def _read_image(self, image: ImageInput):
+    def _read_image(self, image: ImageInput) -> Any:
         if isinstance(image, str):
             return Image.open(image).convert("RGB")
         return Image.open(__import__("io").BytesIO(image)).convert("RGB")
 
-    def _preprocess_image(self, image: ImageInput, size: Tuple[int, int]):
+    def _preprocess_image(self, image: ImageInput, size: Tuple[int, int]) -> Any:
         img = self._read_image(image)
         img = img.resize(size)
         arr = np.asarray(img, dtype=np.float32) / 255.0
         chw = np.transpose(arr, (2, 0, 1))
         return np.expand_dims(chw, axis=0).astype(np.float32)
 
-    def _preprocess_face_image(self, image: ImageInput, size: Tuple[int, int]):
+    def _preprocess_face_image(self, image: ImageInput, size: Tuple[int, int]) -> Any:
         img = self._read_image(image)
         img = img.resize(size)
         arr = np.asarray(img, dtype=np.float32) / 255.0
@@ -208,7 +208,7 @@ class ONNXVisionEngine(VisionEngine):
     def _sigmoid(self, value: float) -> float:
         return 1.0 / (1.0 + math.exp(-value))
 
-    def _softmax(self, values):
+    def _softmax(self, values) -> Any:
         values = np.asarray(values, dtype=np.float32)
         shifted = values - np.max(values)
         exps = np.exp(shifted)
@@ -242,7 +242,7 @@ class ONNXVisionEngine(VisionEngine):
 
     def _non_max_suppression(
         self, detections: List[ObjectDetectionResult], iou_threshold: float = 0.5
-    ):
+    ) -> List[ObjectDetectionResult]:
         if not detections:
             return []
 
@@ -263,7 +263,7 @@ class ONNXVisionEngine(VisionEngine):
 
     def _postprocess_ssd_mobilenet_v2(
         self, outputs: Dict[str, Any], labels: List[str], confidence_threshold: float
-    ):
+    ) -> List[ObjectDetectionResult]:
         box_scales = {"x": 10.0, "y": 10.0, "w": 5.0, "h": 5.0}
         feature_map_shapes = [(19, 19), (10, 10), (5, 5), (3, 3), (2, 2), (1, 1)]
 
@@ -350,7 +350,7 @@ class ONNXVisionEngine(VisionEngine):
 
         return self._non_max_suppression(detections)
 
-    def _generate_ssd_mobilenet_v2_anchors(self, feature_map_shapes):
+    def _generate_ssd_mobilenet_v2_anchors(self, feature_map_shapes: List[Tuple[int, int]]) -> List[Any]:
         min_scale = 0.2
         max_scale = 0.95
         aspect_ratios = [1.0, 2.0, 0.5, 3.0, 1.0 / 3.0]
@@ -409,7 +409,7 @@ class ONNXVisionEngine(VisionEngine):
         labels: List[str],
         output_names: List[str],
         threshold: float,
-    ):
+    ) -> List[ObjectDetectionResult]:
         if any("BoxPredictor_" in name for name in output_names):
             return self._postprocess_ssd_mobilenet_v2(outputs, labels, threshold)
 
@@ -489,7 +489,7 @@ class ONNXVisionEngine(VisionEngine):
         union_area = (w1 * h1) + (w2 * h2) - inter_area
         return inter_area / union_area if union_area > 0 else 0.0
 
-    def _apply_face_nms(self, faces, iou_threshold=0.5):
+    def _apply_face_nms(self, faces: List[Any], iou_threshold: float = 0.5) -> List[Any]:
         if not faces:
             return []
 
@@ -517,7 +517,7 @@ class ONNXVisionEngine(VisionEngine):
         outputs: Dict[str, Any],
         threshold: float,
         model_input_size: Tuple[int, int],
-    ):
+    ) -> FaceDetectionResult:
         model_width, model_height = model_input_size
         faces = []
 

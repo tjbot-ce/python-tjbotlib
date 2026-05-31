@@ -66,11 +66,9 @@ class TJBot:
         if TJBot._instance is None:
             TJBot._instance = self
 
-        self.config = TJBotConfig(override_config, recipe_config_path)
-
-        # Configure logging
-        if self.config.log.level:
-            set_log_level(self.config.log.level)
+        self._override_config = override_config
+        self._recipe_config_path = recipe_config_path
+        self.config: Optional[TJBotConfig] = None
 
         self._shine_colors: List[str] = []
         self._initialized = False
@@ -86,6 +84,9 @@ class TJBot:
 
         if auto_initialize:
             self._initialize(override_config, recipe_config_path)
+        else:
+            # Lazy initialization: config will be loaded on first initialize() call
+            pass
 
     @classmethod
     def get_instance(cls) -> "TJBot":
@@ -120,7 +121,12 @@ class TJBot:
         if self._initialized:
             self.cleanup()
 
-        self.config = TJBotConfig(override_config, recipe_config_path)
+        # Load config if not already loaded (supports lazy initialization)
+        if self.config is None:
+            self.config = TJBotConfig(override_config, recipe_config_path)
+        else:
+            # Reload if explicit parameters passed
+            self.config = TJBotConfig(override_config, recipe_config_path)
 
         # Configure logging
         if self.config.log.level:
@@ -361,6 +367,10 @@ class TJBot:
                 self.rpi_driver.setup_speaker(self.config.speak)
 
     def _assert_capability(self, capability: str) -> RPiHardwareDriver:
+        if self.config is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
         if not self._initialized or self.rpi_driver is None:
             raise TJBotError(
                 "TJBot has not been initialized. Call initialize() before using TJBot methods."
@@ -404,7 +414,10 @@ class TJBot:
         # Async in Node? Node `shine` is async. Python usually sync unless using asyncio.
         # RPi driver `render_led` is sync.
         driver = self.rpi_driver
-        assert driver is not None
+        if driver is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
         driver.render_led(c)
 
     def pulse(self, color: str, duration: float = 1.0) -> None:
@@ -537,7 +550,15 @@ class TJBot:
         driver.speak(message)
 
     def play(self, sound_file: str):
-        assert self.rpi_driver is not None
+        """Play an audio file.
+        
+        :param sound_file: Path to the audio file to play.
+        :raises TJBotError: If TJBot has not been initialized.
+        """
+        if self.rpi_driver is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
         self.rpi_driver.play_audio(sound_file)
 
     # --- LISTEN ---

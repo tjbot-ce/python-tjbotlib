@@ -134,7 +134,10 @@ class LEDNeopixel:
 
         try:
             data = json.dumps({**payload, "id": msg_id}) + "\n"
-            assert self._helper is not None and self._helper.stdin is not None
+            if self._helper is None or self._helper.stdin is None:
+                raise TJBotError(
+                    "NeoPixel helper process is not running or stdin is not available"
+                )
             self._helper.stdin.write(data.encode())
             self._helper.stdin.flush()
         except Exception as exc:
@@ -155,7 +158,10 @@ class LEDNeopixel:
             )
 
     def _read_loop(self) -> None:
-        assert self._helper is not None and self._helper.stdout is not None
+        if self._helper is None or self._helper.stdout is None:
+            raise TJBotError(
+                "NeoPixel helper process is not running or stdout is not available"
+            )
         try:
             for raw in self._helper.stdout:
                 line = raw.decode("utf-8", errors="replace").strip()
@@ -180,7 +186,10 @@ class LEDNeopixel:
                 fut.set_exception(self._helper_dead)
 
     def _stderr_loop(self) -> None:
-        assert self._helper is not None and self._helper.stderr is not None
+        if self._helper is None or self._helper.stderr is None:
+            raise TJBotError(
+                "NeoPixel helper process is not running or stderr is not available"
+            )
         try:
             for raw in self._helper.stderr:
                 line = raw.decode("utf-8", errors="replace").rstrip()
