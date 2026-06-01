@@ -1,3 +1,17 @@
+# Copyright 2026-present TJBot Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Any, Iterable, Optional
 import logging
 import threading
@@ -41,7 +55,8 @@ class AzureSTTEngine(STTEngine):
         self.microphone_channels = 2
 
     def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
-        if speechsdk is None:
+        sdk = speechsdk
+        if sdk is None:
             raise TJBotError(
                 "azure-cognitiveservices-speech library not installed. Please install it."
             )
@@ -60,7 +75,7 @@ class AzureSTTEngine(STTEngine):
             )
 
         try:
-            self.speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+            self.speech_config = sdk.SpeechConfig(subscription=key, region=region)
             language = self.backend_config.language if self.backend_config else "en-US"
             self.speech_config.speech_recognition_language = language
 
@@ -72,6 +87,12 @@ class AzureSTTEngine(STTEngine):
     def transcribe(
         self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
     ) -> str:
+        sdk = speechsdk
+        if sdk is None:
+            raise TJBotError(
+                "azure-cognitiveservices-speech library not installed. Please install it."
+            )
+
         if not self.speech_config:
             raise TJBotError("Azure STT not initialized.")
 
@@ -88,15 +109,15 @@ class AzureSTTEngine(STTEngine):
         self.raise_if_aborted(options)
 
         # Handling streaming audio with Azure SDK is done via PushAudioInputStream
-        stream_format = speechsdk.audio.AudioStreamFormat(
+        stream_format = sdk.audio.AudioStreamFormat(
             samples_per_second=self.microphone_rate,
             bits_per_sample=16,
             channels=self.microphone_channels,
         )
-        push_stream = speechsdk.audio.PushAudioInputStream(stream_format=stream_format)
-        audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
+        push_stream = sdk.audio.PushAudioInputStream(stream_format=stream_format)
+        audio_config = sdk.audio.AudioConfig(stream=push_stream)
 
-        recognizer = speechsdk.SpeechRecognizer(
+        recognizer = sdk.SpeechRecognizer(
             speech_config=self.speech_config, audio_config=audio_config
         )
 
@@ -122,7 +143,7 @@ class AzureSTTEngine(STTEngine):
 
         # Callbacks
         def recognized_cb(evt):
-            if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            if evt.result.reason == sdk.ResultReason.RecognizedSpeech:
                 text = evt.result.text
                 final_transcript.append(text)
                 if on_final_result:
@@ -134,7 +155,7 @@ class AzureSTTEngine(STTEngine):
 
         def recognizing_cb(evt):
             nonlocal latest_partial
-            if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
+            if evt.result.reason == sdk.ResultReason.RecognizingSpeech:
                 text = evt.result.text
                 if text:
                     latest_partial = text
