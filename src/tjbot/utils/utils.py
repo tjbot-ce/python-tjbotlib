@@ -1,10 +1,19 @@
+import asyncio
 import time
 import shutil
 
 
-def sleep(sec: float) -> None:
+async def sleep(sec: float) -> None:
     """
-    Put TJBot to sleep.
+    Put TJBot to sleep asynchronously.
+    :param sec: Number of seconds to sleep for.
+    """
+    await asyncio.sleep(sec)
+
+
+def sleep_sync(sec: float) -> None:
+    """
+    Put TJBot to sleep synchronously (blocking).
     :param sec: Number of seconds to sleep for.
     """
     time.sleep(sec)

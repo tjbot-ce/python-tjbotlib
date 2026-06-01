@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from tjbot import TJBot
+from tjbot.config import TJBotConfig
 from tjbot.utils.errors import TJBotError
 from tjbot.utils import Capability, Hardware
 
@@ -20,8 +21,12 @@ def _mock_pi4_environment(monkeypatch):
 
 
 @pytest.fixture()
-def tjbot_with_mock_driver(monkeypatch):
+def tjbot_with_mock_driver(monkeypatch, tmp_path_factory):
     _mock_pi4_environment(monkeypatch)
+
+    home_dir = tmp_path_factory.mktemp("home")
+    recipe_dir = tmp_path_factory.mktemp("recipe")
+    monkeypatch.setenv("HOME", str(home_dir))
 
     driver = MagicMock()
     driver.has_capability.return_value = True
@@ -39,6 +44,7 @@ def tjbot_with_mock_driver(monkeypatch):
 
     TJBot._instance = None
     bot = TJBot(auto_initialize=False)
+    bot.config = TJBotConfig({}, recipe_config_path=str(recipe_dir / "recipe.toml"))
     bot.rpi_model = "Raspberry Pi 4 Model B"
     bot.rpi_driver = driver
     bot._initialized = True
@@ -200,9 +206,15 @@ def test_wave_calls_renderservoposition_multiple_times(
     tjbot_with_mock_driver, monkeypatch
 ):
     bot, driver = tjbot_with_mock_driver
-    monkeypatch.setattr("tjbot.tjbot.tjbot_sleep", lambda *_args, **_kwargs: None)
+    sleep_calls = []
+
+    def _record_sleep(*args, **kwargs):
+        sleep_calls.append((args, kwargs))
+
+    monkeypatch.setattr("tjbot.tjbot.tjbot_sleep", _record_sleep)
     bot.wave()
     assert driver.render_servo_position.call_count >= 3
+    assert len(sleep_calls) == 3
 
 
 def test_wave_executes_without_error(tjbot_with_mock_driver, monkeypatch):
@@ -1085,31 +1097,24 @@ def test_wave_calls_renderservoposition_multiple_times__2(
 def test_tjbot_led_neopixel_from_real_config(monkeypatch):
     """Test that LED configuration is correctly parsed from real config override."""
     _mock_pi4_environment(monkeypatch)
-    
+
     driver = MagicMock()
     driver.has_capability.return_value = True
     driver.render_led.return_value = None
     driver.cleanup.return_value = None
-    
+
     monkeypatch.setattr("tjbot.tjbot.RPi4Driver", lambda: driver)
-    
+
     TJBot._instance = None
-    
+
     # Override config with proper LED settings
     config_override = {
-        "hardware": {
-            "led": True
-        },
-        "shine": {
-            "hasNeopixelLED": True,
-            "neopixel": {
-                "gpioPin": 18
-            }
-        }
+        "hardware": {"led": True},
+        "shine": {"hasNeopixelLED": True, "neopixel": {"gpioPin": 18}},
     }
-    
+
     bot = TJBot(override_config=config_override)
-    
+
     # Verify config was loaded correctly
     assert bot.config is not None
     assert bot.config.hardware.led is True
@@ -1117,90 +1122,77 @@ def test_tjbot_led_neopixel_from_real_config(monkeypatch):
     assert bot.config.shine.has_neopixel_led is True
     assert bot.config.shine.neopixel is not None
     assert bot.config.shine.neopixel.gpio_pin == 18
-    
+
     bot.cleanup()
 
 
 def test_tjbot_led_common_anode_from_real_config(monkeypatch):
     """Test that common anode LED configuration is correctly parsed from real config."""
     _mock_pi4_environment(monkeypatch)
-    
+
     driver = MagicMock()
     driver.has_capability.return_value = True
     driver.render_led.return_value = None
     driver.cleanup.return_value = None
-    
+
     monkeypatch.setattr("tjbot.tjbot.RPi4Driver", lambda: driver)
-    
+
     TJBot._instance = None
-    
+
     # Override config with common anode LED settings
     config_override = {
-        "hardware": {
-            "led": True
-        },
+        "hardware": {"led": True},
         "shine": {
             "hasCommonAnodeLED": True,
-            "commonAnode": {
-                "gpioPinRed": 21,
-                "gpioPinGreen": 20,
-                "gpioPinBlue": 26
-            }
-        }
+            "commonanode": {"redPin": 21, "greenPin": 20, "bluePin": 26},
+        },
     }
-    
+
     bot = TJBot(override_config=config_override)
-    
+
     # Verify config was loaded correctly
     assert bot.config is not None
     assert bot.config.hardware.led is True
     assert bot.config.shine is not None
     assert bot.config.shine.has_common_anode_led is True
     assert bot.config.shine.common_anode is not None
-    assert bot.config.shine.common_anode.gpio_pin_red == 21
-    assert bot.config.shine.common_anode.gpio_pin_green == 20
-    assert bot.config.shine.common_anode.gpio_pin_blue == 26
-    
+    assert bot.config.shine.common_anode.red_pin == 21
+    assert bot.config.shine.common_anode.green_pin == 20
+    assert bot.config.shine.common_anode.blue_pin == 26
+
     bot.cleanup()
 
 
 def test_tjbot_lazy_initialization(monkeypatch):
     """Test that get_instance with auto_initialize=False defers config loading."""
     _mock_pi4_environment(monkeypatch)
-    
+
     driver = MagicMock()
     driver.cleanup.return_value = None
-    
+
     monkeypatch.setattr("tjbot.tjbot.RPi4Driver", lambda: driver)
-    
+
     TJBot._instance = None
-    
+
     # Create instance without auto_initialize
     bot = TJBot(auto_initialize=False)
-    
+
     # Config should not be loaded yet
     assert bot.config is None
     assert bot.rpi_driver is None
-    
+
     # Now initialize explicitly with config
     config_override = {
-        "hardware": {
-            "led": True
-        },
-        "shine": {
-            "hasNeopixelLED": True,
-            "neopixel": {
-                "gpioPin": 18
-            }
-        }
+        "hardware": {"led": True},
+        "shine": {"hasNeopixelLED": True, "neopixel": {"gpioPin": 18}},
     }
-    
+
     bot.initialize(override_config=config_override)
-    
+
     # Now config should be loaded
     assert bot.config is not None
     assert bot.rpi_driver is not None
-    
+
     bot.cleanup()
 
 
@@ -1208,26 +1200,26 @@ def test_tjbot_lazy_initialization(monkeypatch):
 def test_vision_see_and_detect_objects_integration(tjbot_with_mock_driver):
     """Test vision pipeline: see() and detect_objects() work in sequence."""
     bot, driver = tjbot_with_mock_driver
-    
+
     # Mock vision initialization
     driver.has_capability.return_value = True
     driver.capture_photo_buffer.return_value = b"fake-image-data"
-    
+
     # Call see() to capture image
     image_bytes = bot.see()
     assert image_bytes == b"fake-image-data"
-    
+
     # Verify driver was called
     driver.capture_photo_buffer.assert_called_once()
 
 
-def test_detect_objects_throws_when_vision_not_initialized():
+def test_detect_objects_throws_when_vision_not_initialized(monkeypatch):
     """Test that detect_objects() raises error before initialization."""
-    _mock_pi4_environment(None)  # Need to mock but skip monkeypatch for this test
-    
+    _mock_pi4_environment(monkeypatch)
+
     TJBot._instance = None
     bot = TJBot(auto_initialize=False)
-    
+
     # Attempting to use vision methods before initialization should raise
     with pytest.raises(TJBotError, match="has not been initialized"):
         bot.detect_objects(b"fake-image")
@@ -1238,22 +1230,22 @@ def test_see_fallback_when_buffer_capture_fails_with_exception(
 ):
     """Test that see() falls back to file capture when buffer capture raises exception."""
     bot, driver = tjbot_with_mock_driver
-    
+
     # Setup: buffer capture raises exception
     driver.capture_photo_buffer.side_effect = RuntimeError("Buffer capture failed")
-    
+
     # Setup: file capture returns path
     photo_path = tmp_path / "photo.jpg"
     photo_path.write_bytes(b"fallback-image-from-file")
     driver.capture_photo.return_value = str(photo_path)
-    
+
     # Call see() - should fall back to file
     result = bot.see()
-    
+
     # Verify fallback was used
     assert result == b"fallback-image-from-file"
     driver.capture_photo.assert_called_once()
-    
+
     # Cleanup
     if photo_path.exists():
         photo_path.unlink()

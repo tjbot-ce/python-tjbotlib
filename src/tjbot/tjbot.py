@@ -17,7 +17,8 @@ from .utils import (
     get_shine_colors,
     init_logging,
     normalize_color,
-    sleep as tjbot_sleep,
+    sleep as tjbot_sleep_async,
+    sleep_sync as tjbot_sleep,
     set_log_level,
 )
 from .servo import ServoPosition
@@ -387,8 +388,8 @@ class TJBot:
     def set_log_level(self, level: str) -> None:
         set_log_level(level)
 
-    def sleep(self, sec: float) -> None:
-        tjbot_sleep(sec)
+    async def sleep(self, sec: float) -> None:
+        await tjbot_sleep_async(sec)
 
     # --- SHINE ---
     def shine(self, color: str) -> None:
@@ -542,6 +543,7 @@ class TJBot:
         driver.render_servo_position(ServoPosition.ARM_DOWN)
         tjbot_sleep(delay)
         driver.render_servo_position(ServoPosition.ARM_UP)
+        tjbot_sleep(delay)
 
     # --- SPEAK ---
     def speak(self, message: str):
@@ -551,7 +553,7 @@ class TJBot:
 
     def play(self, sound_file: str):
         """Play an audio file.
-        
+
         :param sound_file: Path to the audio file to play.
         :raises TJBotError: If TJBot has not been initialized.
         """
@@ -565,8 +567,12 @@ class TJBot:
     def listen(self) -> str:
         """
         Listen for speech.
-        :param on_partial_result: Optional callback for partial transcript events.
-        :param on_final_result: Optional callback for final transcript events.
+
+        Returns:
+            The final transcript from the microphone.
+
+        Raises:
+            TJBotError: If TJBot is not initialized or the configured STT mode is streaming.
         """
         driver = self._assert_capability(Capability.LISTEN)
 
@@ -648,7 +654,10 @@ class TJBot:
         driver = self._assert_capability(Capability.SEE)
         capture_buffer = getattr(driver, "capture_photo_buffer", None)
         if callable(capture_buffer):
-            return capture_buffer()
+            try:
+                return capture_buffer()
+            except Exception:
+                pass
 
         photo_path = driver.capture_photo()
         try:

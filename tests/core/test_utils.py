@@ -1,3 +1,4 @@
+import asyncio
 import re
 import time
 
@@ -9,7 +10,7 @@ from tjbot.utils.colors import (
     normalize_color,
 )
 from tjbot.utils.errors import TJBotError
-from tjbot.utils.utils import is_command_available, sleep
+from tjbot.utils.utils import is_command_available, sleep, sleep_sync
 
 
 # ---------------------------------------------------------------------------
@@ -19,17 +20,17 @@ from tjbot.utils.utils import is_command_available, sleep
 
 def test_sleep():
     start = time.time()
-    sleep(100 / 1000)  # 100ms
+    asyncio.run(sleep(100 / 1000))  # 100ms
     end = time.time()
     assert (end - start) >= 0.1
 
 
 def test_sleep_completes_without_error():
-    sleep(0.001)
+    asyncio.run(sleep(0.001))
 
 
 def test_sleep_with_0_seconds_completes():
-    sleep(0)
+    asyncio.run(sleep(0))
 
 
 def test_sleep_is_a_function():
@@ -37,7 +38,15 @@ def test_sleep_is_a_function():
 
 
 def test_sleep_accepts_numeric_argument():
-    sleep(0.001)
+    asyncio.run(sleep(0.001))
+
+
+def test_sleepsync():
+    sleep_sync(0.001)
+
+
+def test_sleepsync_with_0_seconds_completes():
+    sleep_sync(0)
 
 
 # ---------------------------------------------------------------------------

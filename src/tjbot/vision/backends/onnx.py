@@ -350,7 +350,9 @@ class ONNXVisionEngine(VisionEngine):
 
         return self._non_max_suppression(detections)
 
-    def _generate_ssd_mobilenet_v2_anchors(self, feature_map_shapes: List[Tuple[int, int]]) -> List[Any]:
+    def _generate_ssd_mobilenet_v2_anchors(
+        self, feature_map_shapes: List[Tuple[int, int]]
+    ) -> List[Any]:
         min_scale = 0.2
         max_scale = 0.95
         aspect_ratios = [1.0, 2.0, 0.5, 3.0, 1.0 / 3.0]
@@ -489,7 +491,9 @@ class ONNXVisionEngine(VisionEngine):
         union_area = (w1 * h1) + (w2 * h2) - inter_area
         return inter_area / union_area if union_area > 0 else 0.0
 
-    def _apply_face_nms(self, faces: List[Any], iou_threshold: float = 0.5) -> List[Any]:
+    def _apply_face_nms(
+        self, faces: List[Any], iou_threshold: float = 0.5
+    ) -> List[Any]:
         if not faces:
             return []
 
