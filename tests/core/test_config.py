@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytest
+from typing import Any, cast
 from tjbot.config import TJBotConfig
 from tjbot.utils.errors import TJBotError
 from tjbot.stt.stt import STTController
@@ -112,7 +113,9 @@ def test_default_config_loading(tmp_path, monkeypatch):
     assert config.hardware.led is False
     # Check that listen config exists and has reasonable defaults
     assert config.listen is not None
-    assert config.listen.microphone_rate > 0
+    listen_config = config.listen
+    assert listen_config.microphone_rate is not None
+    assert listen_config.microphone_rate > 0
 
 
 def test_override_config(tmp_path, monkeypatch):
@@ -221,7 +224,7 @@ def test_tts_none_backend_raises_descriptive_error():
             _ = file_path
 
     config = TJBotConfig({"speak": {"backend": {"type": "none"}}})
-    controller = TTSController(DummySpeaker())
+    controller = TTSController(cast(Any, DummySpeaker()))
     controller.initialize(config.speak)
 
     with pytest.raises(TJBotError, match="TTS is disabled"):
@@ -578,10 +581,13 @@ def test_overrideconfig_can_update_multiple_nested_levels_independently():
         }
     )
     assert config.see.camera_resolution == (1280, 720)
-    assert config.see.backend is not None
-    assert config.see.backend.local.object_detection_model == "my-model"
+    see_backend = config.see.backend
+    assert see_backend is not None
+    local_backend = see_backend.local
+    assert local_backend is not None
+    assert local_backend.object_detection_model == "my-model"
     assert config.listen.microphone_rate == 48000
-    assert config.see.backend.local.image_classification_model is not None
+    assert local_backend.image_classification_model is not None
     assert config.listen.device is not None
 
 
@@ -615,10 +621,16 @@ def test_handles_nested_backend_configuration():
             },
         }
     )
-    assert config.listen.backend.type == "ibm-watson-stt"
-    assert config.listen.backend.ibm_watson_stt.model == "en-US_Multimedia"
-    assert config.speak.backend.type == "ibm-watson-tts"
-    assert config.speak.backend.ibm_watson_tts.voice == "en-US_MichaelV3Voice"
+    listen_backend = config.listen.backend
+    speak_backend = config.speak.backend
+    assert listen_backend is not None
+    assert speak_backend is not None
+    assert listen_backend.type == "ibm-watson-stt"
+    assert listen_backend.ibm_watson_stt is not None
+    assert listen_backend.ibm_watson_stt.model == "en-US_Multimedia"
+    assert speak_backend.type == "ibm-watson-tts"
+    assert speak_backend.ibm_watson_tts is not None
+    assert speak_backend.ibm_watson_tts.voice == "en-US_MichaelV3Voice"
 
 
 def test_handles_both_led_types_in_config():

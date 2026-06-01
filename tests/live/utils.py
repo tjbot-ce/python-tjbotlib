@@ -18,9 +18,11 @@ import os
 from typing import Optional, List, Dict, Any
 
 # Try to import InquirerPy for better interactive prompts
+inquirer: Any = None
 try:
-    from InquirerPy import inquirer
+    from InquirerPy import inquirer as _inquirer_module
 
+    inquirer = _inquirer_module
     HAS_INQUIRER = True
 except ImportError:
     HAS_INQUIRER = False

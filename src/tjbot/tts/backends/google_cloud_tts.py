@@ -39,7 +39,8 @@ class GoogleCloudTTSEngine(TTSEngine):
         self.client: Any = None
 
     def initialize(self) -> None:
-        if texttospeech is None:
+        sdk = texttospeech
+        if sdk is None:
             raise TJBotError(
                 "google-cloud-texttospeech library not installed. Please install it."
             )
@@ -61,13 +62,19 @@ class GoogleCloudTTSEngine(TTSEngine):
         load_google_cloud_credentials(credentials_path)
 
         try:
-            self.client = texttospeech.TextToSpeechClient()
+            self.client = sdk.TextToSpeechClient()
             logger.info("Google TTS initialized")
         except Exception as e:
             logger.error("Failed to initialize Google TTS: %s", e)
             raise TJBotError(f"Failed to initialize Google TTS: {e}")
 
     def synthesize(self, text: str) -> bytes:
+        sdk = texttospeech
+        if sdk is None:
+            raise TJBotError(
+                "google-cloud-texttospeech library not installed. Please install it."
+            )
+
         if not self.client:
             raise TJBotError(
                 "Google Cloud TTS client not initialized. Call initialize() first."
@@ -84,17 +91,17 @@ class GoogleCloudTTSEngine(TTSEngine):
                 "Google Cloud TTS voice not specified. Provide voice in speak config."
             )
 
-        voice = texttospeech.VoiceSelectionParams(
+        voice = sdk.VoiceSelectionParams(
             language_code=language_code,
             name=voice_name,
         )
 
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+        audio_config = sdk.AudioConfig(
+            audio_encoding=sdk.AudioEncoding.LINEAR16,
             sample_rate_hertz=24000,
         )
 
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        synthesis_input = sdk.SynthesisInput(text=text)
 
         try:
             response = self.client.synthesize_speech(

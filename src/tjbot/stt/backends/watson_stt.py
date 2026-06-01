@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Iterator
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, cast
 import logging
 from ..stt_engine import STTEngine, STTRequestOptions
 from ..stt_utils import (
@@ -31,7 +31,7 @@ try:
 except ImportError:
     SpeechToTextV1 = None
     AudioSource = None
-    RecognizeCallback = object
+    RecognizeCallback = None
     IAMAuthenticator = None
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,9 @@ class IBMWatsonSTTEngine(STTEngine):
         self.microphone_channels = 2
 
     def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
-        if SpeechToTextV1 is None:
+        speech_to_text_cls = SpeechToTextV1
+        authenticator_cls = IAMAuthenticator
+        if speech_to_text_cls is None or authenticator_cls is None:
             raise TJBotError("ibm-watson library not installed. Please install it.")
 
         self.microphone_rate = microphone_rate
@@ -103,15 +105,13 @@ class IBMWatsonSTTEngine(STTEngine):
             url = getattr(self.backend_config, "url", None)
 
             if apikey:
-                authenticator = IAMAuthenticator(apikey)
-                self.service = SpeechToTextV1(authenticator=authenticator)
+                authenticator = authenticator_cls(apikey)
+                self.service = speech_to_text_cls(authenticator=authenticator)
                 if url:
                     self.service.set_service_url(url)
             else:
                 # Auto-load from env/file
-                self.service = SpeechToTextV1(
-                    authenticator=None
-                )  # SDK might raise if no creds found
+                self.service = speech_to_text_cls(authenticator=cast(Any, None))
 
             logger.info("Watson STT initialized")
         except Exception as e:
@@ -121,10 +121,12 @@ class IBMWatsonSTTEngine(STTEngine):
     def transcribe(
         self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
     ) -> str:
+        callback_base = RecognizeCallback
+        if AudioSource is None or callback_base is None:
+            raise TJBotError("ibm-watson websocket support is unavailable.")
+
         if not self.service:
             raise TJBotError("Watson STT not initialized or credentials missing.")
-        if AudioSource is None:
-            raise TJBotError("ibm-watson websocket support is unavailable.")
 
         options = options or {}
         abort_signal = options.get("abort_signal")
@@ -168,7 +170,7 @@ class IBMWatsonSTTEngine(STTEngine):
         try:
             watson_audio = AudioSource(_IterableAudioSourceStream(audio_stream))
 
-            class _RecognizeCallback(RecognizeCallback):
+            class _RecognizeCallback(callback_base):
                 def __init__(self, engine: "IBMWatsonSTTEngine"):
                     super().__init__()
                     self._engine = engine

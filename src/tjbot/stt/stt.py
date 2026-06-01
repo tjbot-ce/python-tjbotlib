@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import TYPE_CHECKING, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
 from ..config.config_types import ListenConfig
 from ..utils.errors import TJBotError
@@ -55,9 +55,9 @@ class STTController:
         self,
         audio_stream: Optional[Iterable[bytes]] = None,
         *,
-        on_partial_result=None,
-        on_final_result=None,
-        abort_signal=None,
+        on_partial_result: Optional[Callable[[str], None]] = None,
+        on_final_result: Optional[Callable[[str], None]] = None,
+        abort_signal: Any = None,
     ) -> str:
         if self.config is None or self.engine is None:
             raise TJBotError(

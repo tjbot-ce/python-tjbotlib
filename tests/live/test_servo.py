@@ -65,6 +65,7 @@ def run_test():
     print(format_section("Testing TJBot Wave API"))
 
     try:
+        assert tjbot.config is not None
         print(
             f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servo_pin}\n"
         )

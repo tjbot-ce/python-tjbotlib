@@ -22,6 +22,7 @@ from ...utils.errors import TJBotError
 from ...utils import ModelRegistry
 from ..vision_engine import (
     FaceDetectionResult,
+    FaceDetectionMetadata,
     ImageClassificationResult,
     ImageDescriptionResult,
     ImageInput,
@@ -146,6 +147,7 @@ class ONNXVisionEngine(VisionEngine):
         content = label_file.read_text(encoding="utf-8")
         if label_file.suffix == ".yaml" and kind == "detection":
             # Simple YAML names extraction compatibility for common coco yaml format.
+            names_section = ""
             if "names:" in content:
                 names_section = content.split("names:", 1)[1]
                 if "[" in names_section and "]" in names_section:
@@ -506,13 +508,15 @@ class ONNXVisionEngine(VisionEngine):
         return inter_area / union_area if union_area > 0 else 0.0
 
     def _apply_face_nms(
-        self, faces: List[Any], iou_threshold: float = 0.5
-    ) -> List[Any]:
+        self, faces: List[FaceDetectionMetadata], iou_threshold: float = 0.5
+    ) -> List[FaceDetectionMetadata]:
         if not faces:
             return []
 
-        sorted_faces = sorted(faces, key=lambda item: item["confidence"], reverse=True)
-        kept = []
+        sorted_faces = sorted(
+            faces, key=lambda item: float(item.get("confidence", 0.0)), reverse=True
+        )
+        kept: List[FaceDetectionMetadata] = []
         suppressed = [False] * len(sorted_faces)
 
         for i in range(len(sorted_faces)):
@@ -523,7 +527,8 @@ class ONNXVisionEngine(VisionEngine):
                 if suppressed[j]:
                     continue
                 iou = self._compute_iou(
-                    sorted_faces[i]["boundingBox"], sorted_faces[j]["boundingBox"]
+                    sorted_faces[i].get("boundingBox", (0.0, 0.0, 0.0, 0.0)),
+                    sorted_faces[j].get("boundingBox", (0.0, 0.0, 0.0, 0.0)),
                 )
                 if iou > iou_threshold:
                     suppressed[j] = True
@@ -535,9 +540,9 @@ class ONNXVisionEngine(VisionEngine):
         outputs: Dict[str, Any],
         threshold: float,
         model_input_size: Tuple[int, int],
-    ) -> FaceDetectionResult:
+    ) -> List[FaceDetectionMetadata]:
         model_width, model_height = model_input_size
-        faces = []
+        faces: List[FaceDetectionMetadata] = []
 
         scales = [
             {"stride": 8, "scoreKey": "446", "bboxKey": "449", "kpsKey": "452"},
@@ -630,7 +635,7 @@ class ONNXVisionEngine(VisionEngine):
         outputs: Dict[str, Any],
         threshold: float,
         model_input_size: Tuple[int, int],
-    ):
+    ) -> List[FaceDetectionMetadata]:
         return self._postprocess_scrfd_face_detection(
             outputs, threshold, model_input_size
         )

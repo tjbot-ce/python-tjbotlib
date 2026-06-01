@@ -194,6 +194,12 @@ class GoogleCloudSTTEngine(STTEngine):
     def transcribe(
         self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
     ) -> str:
+        sdk = cs
+        if sdk is None:
+            raise TJBotError(
+                "google-cloud-speech library not installed. Please install it."
+            )
+
         if not self.client:
             raise TJBotError("Google Cloud STT client not initialized.")
 
@@ -229,27 +235,27 @@ class GoogleCloudSTTEngine(STTEngine):
             recognizer_path,
         )
 
-        streaming_config = cs.StreamingRecognitionConfig(
-            config=cs.RecognitionConfig(
-                explicit_decoding_config=cs.ExplicitDecodingConfig(
-                    encoding=cs.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+        streaming_config = sdk.StreamingRecognitionConfig(
+            config=sdk.RecognitionConfig(
+                explicit_decoding_config=sdk.ExplicitDecodingConfig(
+                    encoding=sdk.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
                     sample_rate_hertz=self.microphone_rate,
                     audio_channel_count=self.microphone_channels,
                 ),
                 model=model,
                 language_codes=[language_code],
-                features=cs.RecognitionFeatures(
+                features=sdk.RecognitionFeatures(
                     enable_automatic_punctuation=enable_automatic_punctuation,
                     profanity_filter=profanity_filter,
                 ),
             ),
-            streaming_features=cs.StreamingRecognitionFeatures(
+            streaming_features=sdk.StreamingRecognitionFeatures(
                 interim_results=interim_results,
             ),
         )
 
-        def _request_generator() -> Iterator[cs.StreamingRecognizeRequest]:
-            yield cs.StreamingRecognizeRequest(
+        def _request_generator() -> Iterator[Any]:
+            yield sdk.StreamingRecognizeRequest(
                 recognizer=recognizer_path,
                 streaming_config=streaming_config,
             )
@@ -260,7 +266,7 @@ class GoogleCloudSTTEngine(STTEngine):
                     )
                 # Chunk audio to stay within 25600-byte API limit
                 for offset in range(0, len(chunk), _MAX_AUDIO_CHUNK_BYTES):
-                    yield cs.StreamingRecognizeRequest(
+                    yield sdk.StreamingRecognizeRequest(
                         audio=chunk[offset : offset + _MAX_AUDIO_CHUNK_BYTES],
                     )
 

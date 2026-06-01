@@ -19,7 +19,7 @@ import random
 import signal
 import threading
 from importlib.metadata import version, PackageNotFoundError
-from typing import Optional, Dict, Any, List, Union, Callable
+from typing import Optional, Dict, Any, List, Union, Callable, cast
 
 from .config import TJBotConfig
 from .utils.errors import TJBotError
@@ -298,7 +298,11 @@ class TJBot:
     def _initialize_hardware_from_config(self):
         if self.rpi_driver is None:
             return
-        hw_config = self.config.hardware
+        config = self.config
+        if config is None:
+            return
+
+        hw_config = config.hardware
         enabled_hardware: List[str] = []
 
         # Determine what to init
@@ -325,9 +329,9 @@ class TJBot:
 
         for hw in enabled_hardware:
             if hw == Hardware.CAMERA:
-                self.rpi_driver.setup_camera(self.config.see)
+                self.rpi_driver.setup_camera(config.see)
             elif hw == Hardware.LED:
-                shine_config = self.config.shine
+                shine_config = config.shine
                 has_neopixel = bool(
                     (
                         getattr(shine_config, "has_neopixel_led", False)
@@ -375,11 +379,11 @@ class TJBot:
                         )
                     self.rpi_driver.setup_led_common_anode(common_anode)
             elif hw == Hardware.MICROPHONE:
-                self.rpi_driver.setup_microphone(self.config.listen)
+                self.rpi_driver.setup_microphone(config.listen)
             elif hw == Hardware.SERVO:
-                self.rpi_driver.setup_servo(self.config.wave)
+                self.rpi_driver.setup_servo(config.wave)
             elif hw == Hardware.SPEAKER:
-                self.rpi_driver.setup_speaker(self.config.speak)
+                self.rpi_driver.setup_speaker(config.speak)
 
     def _assert_capability(self, capability: str) -> RPiHardwareDriver:
         if self.config is None:
@@ -590,7 +594,13 @@ class TJBot:
         """
         driver = self._assert_capability(Capability.LISTEN)
 
-        listen_config = self.config.listen
+        config = self.config
+        if config is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
+
+        listen_config = config.listen
         mode = infer_stt_mode(listen_config)
 
         local_cfg = (
@@ -616,7 +626,13 @@ class TJBot:
     ) -> None:
         driver = self._assert_capability(Capability.LISTEN)
 
-        listen_config = self.config.listen
+        config = self.config
+        if config is None:
+            raise TJBotError(
+                "TJBot has not been initialized. Call initialize() before using TJBot methods."
+            )
+
+        listen_config = config.listen
         mode = infer_stt_mode(listen_config)
 
         if on_partial_result is None and on_final_result is None:
@@ -669,7 +685,7 @@ class TJBot:
         capture_buffer = getattr(driver, "capture_photo_buffer", None)
         if callable(capture_buffer):
             try:
-                return capture_buffer()
+                return cast(bytes, capture_buffer())
             except Exception:
                 pass
 

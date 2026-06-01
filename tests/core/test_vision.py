@@ -84,13 +84,15 @@ class _FakeSession:
 
 
 def _make_config() -> SeeBackendLocalConfig:
-    return SeeBackendLocalConfig(
-        object_detection_model="ssd-mobilenet-v2",
-        image_classification_model="mobilenetv3",
-        face_detection_model="scrfd-2.5g",
-        object_detection_confidence=0.5,
-        image_classification_confidence=0.4,
-        face_detection_confidence=0.3,
+    return SeeBackendLocalConfig.model_validate(
+        {
+            "objectDetectionModel": "ssd-mobilenet-v2",
+            "imageClassificationModel": "mobilenetv3",
+            "faceDetectionModel": "scrfd-2.5g",
+            "objectDetectionConfidence": 0.5,
+            "imageClassificationConfidence": 0.4,
+            "faceDetectionConfidence": 0.3,
+        }
     )
 
 

@@ -18,6 +18,7 @@ import threading
 import time
 import unittest.mock as mock
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -664,29 +665,33 @@ def test_applies_configuration_overrides(MockDetect):
     with mock.patch("tjbot.tjbot.RPi4Driver"):
         bot = TJBot(config)
         assert isinstance(bot, TJBot)
+        assert bot.config is not None
         assert bot.config.log.level == "debug"
 
 
 def test_tjbot_led_neopixel_enabled_without_config_raises():
     bot = TJBot(auto_initialize=False)
     bot.rpi_driver = mock.MagicMock()
-    bot.config = SimpleNamespace(
-        hardware=SimpleNamespace(
-            speaker=False,
-            microphone=False,
-            camera=False,
-            led_neopixel=True,
-            led_common_anode=False,
-            servo=False,
+    bot.config = cast(
+        Any,
+        SimpleNamespace(
+            hardware=SimpleNamespace(
+                speaker=False,
+                microphone=False,
+                camera=False,
+                led_neopixel=True,
+                led_common_anode=False,
+                servo=False,
+            ),
+            shine=SimpleNamespace(
+                neopixel=SimpleNamespace(gpio_pin=None, spi_interface=None),
+                common_anode=None,
+            ),
+            see=None,
+            listen=None,
+            wave=None,
+            speak=None,
         ),
-        shine=SimpleNamespace(
-            neopixel=SimpleNamespace(gpio_pin=None, spi_interface=None),
-            common_anode=None,
-        ),
-        see=None,
-        listen=None,
-        wave=None,
-        speak=None,
     )
 
     with pytest.raises(TJBotError, match="NeoPixel LED hardware is enabled"):
@@ -696,23 +701,28 @@ def test_tjbot_led_neopixel_enabled_without_config_raises():
 def test_tjbot_led_common_anode_enabled_without_config_raises():
     bot = TJBot(auto_initialize=False)
     bot.rpi_driver = mock.MagicMock()
-    bot.config = SimpleNamespace(
-        hardware=SimpleNamespace(
-            speaker=False,
-            microphone=False,
-            camera=False,
-            led_neopixel=False,
-            led_common_anode=True,
-            servo=False,
+    bot.config = cast(
+        Any,
+        SimpleNamespace(
+            hardware=SimpleNamespace(
+                speaker=False,
+                microphone=False,
+                camera=False,
+                led_neopixel=False,
+                led_common_anode=True,
+                servo=False,
+            ),
+            shine=SimpleNamespace(
+                neopixel=None,
+                common_anode=SimpleNamespace(
+                    red_pin=None, green_pin=None, blue_pin=None
+                ),
+            ),
+            see=None,
+            listen=None,
+            wave=None,
+            speak=None,
         ),
-        shine=SimpleNamespace(
-            neopixel=None,
-            common_anode=SimpleNamespace(red_pin=None, green_pin=None, blue_pin=None),
-        ),
-        see=None,
-        listen=None,
-        wave=None,
-        speak=None,
     )
 
     with pytest.raises(TJBotError, match="Common-anode LED hardware is enabled"):
@@ -961,7 +971,7 @@ def test_tjbot_signal_handler_triggers_cleanup(
 
     assert exc_info.value.code == 143
     assert driver is not None
-    driver.cleanup.assert_called_once()
+    cast(Any, driver).cleanup.assert_called_once_with()
 
 
 @mock.patch("tjbot.tjbot.RPiDetect")

@@ -20,8 +20,8 @@ from ..utils.errors import TJBotError
 
 
 class STTRequestOptions(TypedDict, total=False):
-    on_partial_result: Callable[[str], None]
-    on_final_result: Callable[[str], None]
+    on_partial_result: Optional[Callable[[str], None]]
+    on_final_result: Optional[Callable[[str], None]]
     abort_signal: Any
 
 

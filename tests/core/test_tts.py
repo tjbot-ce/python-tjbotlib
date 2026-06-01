@@ -143,8 +143,8 @@ def test_tts_google_backend_uses_mocked_engine_module(monkeypatch):
         backend=TTSBackendConfig.model_validate(
             {
                 "type": "google-cloud-tts",
-                "google-cloud-tts": TTSBackendGoogleCloudConfig(
-                    language_code="en-US"
+                "google-cloud-tts": TTSBackendGoogleCloudConfig.model_validate(
+                    {"languageCode": "en-US"}
                 ).model_dump(by_alias=True),
             }
         )
@@ -210,8 +210,8 @@ def test_tts_backend_init_error_propagates(monkeypatch):
         backend=TTSBackendConfig.model_validate(
             {
                 "type": "google-cloud-tts",
-                "google-cloud-tts": TTSBackendGoogleCloudConfig(
-                    language_code="en-US"
+                "google-cloud-tts": TTSBackendGoogleCloudConfig.model_validate(
+                    {"languageCode": "en-US"}
                 ).model_dump(by_alias=True),
             }
         )

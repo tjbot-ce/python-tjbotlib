@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from ..tts_engine import TTSEngine
 from ...config.config_types import TTSBackendIBMWatsonConfig
@@ -41,7 +41,9 @@ class IBMWatsonTTSEngine(TTSEngine):
         self.service: Any = None
 
     def initialize(self) -> None:
-        if TextToSpeechV1 is None:
+        text_to_speech_cls = TextToSpeechV1
+        authenticator_cls = IAMAuthenticator
+        if text_to_speech_cls is None or authenticator_cls is None:
             raise TJBotError("ibm-watson library not installed. Please install it.")
 
         voice = self.backend_config.voice if self.backend_config else None
@@ -58,12 +60,12 @@ class IBMWatsonTTSEngine(TTSEngine):
             url = getattr(self.backend_config, "url", None)
 
             if apikey:
-                authenticator = IAMAuthenticator(apikey)
-                self.service = TextToSpeechV1(authenticator=authenticator)
+                authenticator = authenticator_cls(apikey)
+                self.service = text_to_speech_cls(authenticator=authenticator)
                 if url:
                     self.service.set_service_url(url)
             else:
-                self.service = TextToSpeechV1(authenticator=None)
+                self.service = text_to_speech_cls(authenticator=cast(Any, None))
 
             logger.info("Watson TTS initialized")
         except Exception as e:

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from ...config.config_types import TTSBackendAzureConfig
 from ...utils.credentials import load_azure_credentials
@@ -41,7 +41,8 @@ class AzureTTSEngine(TTSEngine):
         self.region: Optional[str] = None
 
     def initialize(self) -> None:
-        if speechsdk is None:
+        sdk = speechsdk
+        if sdk is None:
             raise TJBotError(
                 "azure-cognitiveservices-speech library not installed. Please install it."
             )
@@ -63,7 +64,7 @@ class AzureTTSEngine(TTSEngine):
             )
 
         try:
-            self.speech_config = speechsdk.SpeechConfig(
+            self.speech_config = sdk.SpeechConfig(
                 subscription=self.subscription_key, region=self.region
             )
             logger.info("Azure TTS initialized")
@@ -72,6 +73,12 @@ class AzureTTSEngine(TTSEngine):
             raise TJBotError(f"Failed to initialize Azure TTS: {e}")
 
     def synthesize(self, text: str) -> bytes:
+        sdk = speechsdk
+        if sdk is None:
+            raise TJBotError(
+                "azure-cognitiveservices-speech library not installed. Please install it."
+            )
+
         if not self.speech_config or not self.subscription_key or not self.region:
             raise TJBotError("Azure TTS not initialized. Call initialize() first.")
 
@@ -85,19 +92,19 @@ class AzureTTSEngine(TTSEngine):
 
         self.speech_config.speech_synthesis_voice_name = voice_name
         self.speech_config.set_speech_synthesis_output_format(
-            speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
+            sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
         )
 
-        synthesizer = speechsdk.SpeechSynthesizer(
+        synthesizer = sdk.SpeechSynthesizer(
             speech_config=self.speech_config, audio_config=None
         )
 
         try:
-            result = synthesizer.speak_text_async(text).get()
+            result: Any = synthesizer.speak_text_async(text).get()
 
-            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            if result.reason == sdk.ResultReason.SynthesizingAudioCompleted:
                 return result.audio_data
-            elif result.reason == speechsdk.ResultReason.Canceled:
+            elif result.reason == sdk.ResultReason.Canceled:
                 cancellation_details = result.cancellation_details
                 raise TJBotError(
                     f"Azure TTS canceled: {cancellation_details.reason} - {cancellation_details.error_details}"

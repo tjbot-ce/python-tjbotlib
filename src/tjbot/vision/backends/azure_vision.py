@@ -127,7 +127,7 @@ class AzureVisionEngine(VisionEngine):
             result = self.client.analyze_image_in_stream(
                 self._read_image(image), visual_features=["Tags"]
             )
-            output = [
+            output: List[ImageClassificationResult] = [
                 {
                     "label": (tag.name or "unknown"),
                     "confidence": float(tag.confidence or 0.0),

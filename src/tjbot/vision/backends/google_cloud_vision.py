@@ -89,8 +89,13 @@ class GoogleCloudVisionEngine(VisionEngine):
     def detect_objects(self, image: ImageInput) -> List[ObjectDetectionResult]:
         self._ensure_client()
         threshold = self._object_detection_threshold()
+        sdk = google_vision
+        if sdk is None:
+            raise TJBotError(
+                "google-cloud-vision library not installed. Please install it."
+            )
 
-        source = google_vision.Image(content=self._read_image(image))
+        source = sdk.Image(content=self._read_image(image))
 
         try:
             response = self.client.object_localization(image=source)
@@ -134,8 +139,13 @@ class GoogleCloudVisionEngine(VisionEngine):
     def classify_image(self, image: ImageInput) -> List[ImageClassificationResult]:
         self._ensure_client()
         threshold = self._classification_threshold()
+        sdk = google_vision
+        if sdk is None:
+            raise TJBotError(
+                "google-cloud-vision library not installed. Please install it."
+            )
 
-        source = google_vision.Image(content=self._read_image(image))
+        source = sdk.Image(content=self._read_image(image))
 
         try:
             response = self.client.label_detection(image=source)
@@ -144,7 +154,7 @@ class GoogleCloudVisionEngine(VisionEngine):
                     f"Google Cloud Vision API error during classification: {response.error.message}"
                 )
 
-            output = [
+            output: List[ImageClassificationResult] = [
                 {
                     "label": label.description or "unknown",
                     "confidence": float(label.score or 0.0),
@@ -164,8 +174,13 @@ class GoogleCloudVisionEngine(VisionEngine):
     def detect_faces(self, image: ImageInput) -> FaceDetectionResult:
         self._ensure_client()
         threshold = self._face_detection_threshold()
+        sdk = google_vision
+        if sdk is None:
+            raise TJBotError(
+                "google-cloud-vision library not installed. Please install it."
+            )
 
-        source = google_vision.Image(content=self._read_image(image))
+        source = sdk.Image(content=self._read_image(image))
 
         try:
             response = self.client.face_detection(image=source)

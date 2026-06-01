@@ -15,6 +15,7 @@
 import sys
 import types
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -144,17 +145,15 @@ def test_stt_google_backend_uses_mocked_engine_module(monkeypatch):
         FakeGoogleEngine,
     )
 
-    config = ListenConfig(
-        microphone_rate=44100,
-        microphone_channels=2,
-        backend=STTBackendConfig.model_validate(
-            {
+    config = ListenConfig.model_validate(
+        {
+            "microphoneRate": 44100,
+            "microphoneChannels": 2,
+            "backend": {
                 "type": "google-cloud-stt",
-                "google-cloud-stt": STTBackendGoogleCloudConfig(
-                    language_code="en-US"
-                ).model_dump(by_alias=True),
-            }
-        ),
+                "google-cloud-stt": {"languageCode": "en-US"},
+            },
+        }
     )
 
     controller = STTController(config)
@@ -183,13 +182,13 @@ def test_stt_azure_backend_uses_mocked_engine_module(monkeypatch):
         FakeAzureEngine,
     )
 
-    config = ListenConfig(
-        backend=STTBackendConfig.model_validate(
-            {
+    config = ListenConfig.model_validate(
+        {
+            "backend": {
                 "type": "azure-stt",
-                "azure-stt": STTBackendAzureConfig(language="en-US").model_dump(),
+                "azure-stt": {"language": "en-US"},
             }
-        )
+        }
     )
 
     controller = STTController(config)
@@ -210,15 +209,13 @@ def test_stt_backend_init_error_propagates(monkeypatch):
         FailingGoogleEngine,
     )
 
-    config = ListenConfig(
-        backend=STTBackendConfig.model_validate(
-            {
+    config = ListenConfig.model_validate(
+        {
+            "backend": {
                 "type": "google-cloud-stt",
-                "google-cloud-stt": STTBackendGoogleCloudConfig(
-                    language_code="en-US"
-                ).model_dump(by_alias=True),
+                "google-cloud-stt": {"languageCode": "en-US"},
             }
-        )
+        }
     )
 
     with pytest.raises(TJBotError, match="backend init failed"):
@@ -346,6 +343,7 @@ def test_google_cloud_transcribe_uses_runtime_resolved_project_id(
 
     class FakeSpeechClient:
         def __init__(self, client_options=None):
+            assert client_options is not None
             captured["endpoint"] = client_options["api_endpoint"]
 
         def streaming_recognize(self, requests):
@@ -401,10 +399,8 @@ def test_google_cloud_transcribe_uses_runtime_resolved_project_id(
     )
 
     engine = google_cloud_stt.GoogleCloudSTTEngine(
-        STTBackendGoogleCloudConfig(
-            model="chirp_3",
-            language_code="en-US",
-            region="us",
+        STTBackendGoogleCloudConfig.model_validate(
+            {"model": "chirp_3", "languageCode": "en-US", "region": "us"}
         )
     )
     engine.initialize(16000, 1)
@@ -576,7 +572,7 @@ def test_stt_transcribe_manages_microphone_lifecycle_and_retries_on_no_speech():
             return self.stream
 
     mic = FakeMicrophoneController()
-    controller = STTController(microphone_controller=mic)
+    controller = STTController(microphone_controller=cast(Any, mic))
     controller.config = ListenConfig(backend=STTBackendConfig(type="none"))
 
     fake_engine = MagicMock()
@@ -644,50 +640,52 @@ class TestToModelType:
 
 class TestInferSTTMode:
     def _config(self, backend_type, **kwargs):
-        backend = STTBackendConfig(type=backend_type)
-        return ListenConfig(backend=backend)
+        backend = STTBackendConfig.model_validate({"type": backend_type})
+        return ListenConfig.model_validate(
+            {"backend": backend.model_dump(by_alias=True)}
+        )
 
     def test_ibm_watson_no_interim(self):
-        cfg = ListenConfig(
-            backend=STTBackendConfig(
-                type="ibm-watson-stt",
-                **{"ibm-watson-stt": STTBackendIBMWatsonConfig(interim_results=False)},
-            )
+        cfg = ListenConfig.model_validate(
+            {
+                "backend": {
+                    "type": "ibm-watson-stt",
+                    "ibm-watson-stt": {"interimResults": False},
+                }
+            }
         )
         assert infer_stt_mode(cfg) == "offline"
 
     def test_ibm_watson_interim(self):
-        cfg = ListenConfig(
-            backend=STTBackendConfig(
-                type="ibm-watson-stt",
-                **{"ibm-watson-stt": STTBackendIBMWatsonConfig(interim_results=True)},
-            )
+        cfg = ListenConfig.model_validate(
+            {
+                "backend": {
+                    "type": "ibm-watson-stt",
+                    "ibm-watson-stt": {"interimResults": True},
+                }
+            }
         )
         assert infer_stt_mode(cfg) == "streaming"
 
     def test_google_cloud_no_interim(self):
-        cfg = ListenConfig(
-            backend=STTBackendConfig(
-                type="google-cloud-stt",
-                **{
-                    "google-cloud-stt": STTBackendGoogleCloudConfig(
-                        interim_results=False
-                    )
-                },
-            )
+        cfg = ListenConfig.model_validate(
+            {
+                "backend": {
+                    "type": "google-cloud-stt",
+                    "google-cloud-stt": {"interimResults": False},
+                }
+            }
         )
         assert infer_stt_mode(cfg) == "offline"
 
     def test_google_cloud_interim(self):
-        cfg = ListenConfig(
-            backend=STTBackendConfig(
-                type="google-cloud-stt",
-                **{
-                    "google-cloud-stt": STTBackendGoogleCloudConfig(
-                        interim_results=True
-                    )
-                },
-            )
+        cfg = ListenConfig.model_validate(
+            {
+                "backend": {
+                    "type": "google-cloud-stt",
+                    "google-cloud-stt": {"interimResults": True},
+                }
+            }
         )
         assert infer_stt_mode(cfg) == "streaming"
 
@@ -764,7 +762,8 @@ def _make_fake_sherpa():
         def decode_stream(self, _stream):
             pass
 
-    fake.OfflineRecognizer = FakeOfflineRecognizer
+    fake_any = cast(Any, fake)
+    fake_any.OfflineRecognizer = FakeOfflineRecognizer
 
     class FakeOnlineRecognizer:
         @staticmethod
@@ -793,7 +792,7 @@ def _make_fake_sherpa():
         def reset(self, _s):
             pass
 
-    fake.OnlineRecognizer = FakeOnlineRecognizer
+    fake_any.OnlineRecognizer = FakeOnlineRecognizer
 
     class FakeVadSegment:
         def __init__(self, samples):
@@ -815,9 +814,9 @@ def _make_fake_sherpa():
         def pop(self):
             self._segments.pop(0)
 
-    fake.VoiceActivityDetector = FakeVAD
-    fake.VadModelConfig = MagicMock(return_value=object())
-    fake.SileroVadModelConfig = MagicMock(return_value=object())
+    fake_any.VoiceActivityDetector = FakeVAD
+    fake_any.VadModelConfig = MagicMock(return_value=object())
+    fake_any.SileroVadModelConfig = MagicMock(return_value=object())
 
     return fake, FakeVAD, FakeVadSegment
 
@@ -825,7 +824,9 @@ def _make_fake_sherpa():
 def _install_fake_sherpa(monkeypatch):
     fake_sherpa, FakeVAD, FakeVadSegment = _make_fake_sherpa()
     # Set __spec__ to avoid errors in importlib.util.find_spec
-    fake_sherpa.__spec__ = types.SimpleNamespace(submodule_search_locations=[])
+    cast(Any, fake_sherpa).__spec__ = types.SimpleNamespace(
+        submodule_search_locations=[]
+    )
     monkeypatch.setitem(sys.modules, "sherpa_onnx", fake_sherpa)
     return fake_sherpa, FakeVAD, FakeVadSegment
 
@@ -1089,7 +1090,7 @@ class TestTranscribeOfflineWithVad:
             def pop(self):
                 self._done = True
 
-        engine._create_silero_vad = lambda _path: PropertyFrontVAD()
+        engine._create_silero_vad = lambda model_path: PropertyFrontVAD()
 
         result = engine._transcribe_offline_with_vad(iter([b"\x00" * 1024]), None, None)
         assert result == "hello world"
@@ -1105,7 +1106,7 @@ class TestTranscribeOfflineWithVad:
         # Override _create_silero_vad to return a VAD with no segments
         empty_vad = MagicMock()
         empty_vad.is_empty.return_value = True
-        engine._create_silero_vad = lambda _path: empty_vad
+        engine._create_silero_vad = lambda model_path: empty_vad
 
         result = engine._transcribe_offline_with_vad(iter([b"\x00" * 100]), None, None)
         assert result == ""
@@ -1127,16 +1128,16 @@ class TestTranscribeOfflineWithVad:
             def accept_waveform(self, _s):
                 pass
 
-            def is_empty(self_):
+            def is_empty(self):
                 return call_count[0] >= 1
 
-            def front(self_):
+            def front(self):
                 return segment
 
-            def pop(self_):
+            def pop(self):
                 call_count[0] += 1
 
-        engine._create_silero_vad = lambda _path: SingleSegmentVAD()
+        engine._create_silero_vad = lambda model_path: SingleSegmentVAD()
 
         finals = []
         result = engine._transcribe_offline_with_vad(

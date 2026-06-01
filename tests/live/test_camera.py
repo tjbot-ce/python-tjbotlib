@@ -68,6 +68,8 @@ def run_test():
     try:
         tjbot._initialize_hardware_from_config()
         # Manually setup camera since it's not in default hardware config
+        assert tjbot.config is not None
+        assert tjbot.rpi_driver is not None
         tjbot.rpi_driver.setup_camera(tjbot.config.see)
         print("✓ TJBot initialized with camera hardware\n")
 
@@ -126,7 +128,7 @@ def run_test():
 
         # Test 2: Initialize with custom configuration
         print("\nTest 2: Initializing CameraController with custom configuration")
-        camera.initialize([1280, 720], vertical_flip=False, horizontal_flip=False)
+        camera.initialize((1280, 720), vertical_flip=False, horizontal_flip=False)
         print(
             "✓ CameraController configured with custom resolution and default orientation"
         )
