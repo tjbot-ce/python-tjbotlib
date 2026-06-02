@@ -1,5 +1,5 @@
 [project]
-name = "python-tjbotlib"
+name = "tjbot"
 version = "3.0.0"
 description = "Python library for writing TJBot recipes"
 readme = "README.md"
