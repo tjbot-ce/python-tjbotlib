@@ -215,7 +215,7 @@ tj = TJBot(override_config=config)
 
 TJBot uses [TOML](https://toml.io/en/) for its configuration. The canonical default configuration lives in [vendor/tjbot-config/tjbot.default.toml](vendor/tjbot-config/tjbot.default.toml) and follows the schema specified in [vendor/tjbot-config/tjbot-config.schema.yaml](vendor/tjbot-config/tjbot-config.schema.yaml).
 
-These files are synced into [src/config/](src/config/) during builds. They can be synced manually by running this command:
+These files are synced into `src/config/` during builds. They can be synced manually by running this command:
 
 ```bash
 mise run sync-config-schema
@@ -223,8 +223,7 @@ mise run sync-config-schema
 
 ### Custom Models & Model Registry
 
-TJBot ships with a built-in model registry in
-[vendor/tjbot-config/model-registry.yaml](vendor/tjbot-config/model-registry.yaml). The registry is synced into [src/config/model-registry.yaml](src/config/model-registry.yaml) during builds for local development and packaging. You can register additional ML models in your `~/.tjbot/tjbot.toml` file. Search for the section titled "On-Device ML Models".
+TJBot ships with a built-in model registry in `vendor/tjbot-config/model-registry.yaml`. The registry is synced into `src/config/model-registry.yaml` during builds for local development and packaging. You can register additional ML models in your `~/.tjbot/tjbot.toml` file. Search for the section titled "On-Device ML Models".
 
 Example: register a custom vision classification model and use it locally:
 
