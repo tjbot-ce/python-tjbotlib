@@ -14,7 +14,7 @@
 
 import logging
 from enum import StrEnum
-from typing import Optional
+from typing import Literal, Optional
 
 
 class LogEmoji(StrEnum):
@@ -34,7 +34,7 @@ class LogEmoji(StrEnum):
     VISION = "👁️"
 
 
-TJBotLogLevel = str
+TJBotLogLevel = Literal["error", "warning", "warn", "info", "verbose", "debug", "silly"]
 
 _PACKAGE_LOGGER = "tjbot"
 _configured = False

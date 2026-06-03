@@ -78,8 +78,8 @@ description = "Run live vision tests"
 run = "uv run python tests/live/test_vision.py"
 
 [tasks.docs]
-description = "Generate docs if docs folder exists"
-run = "if [ -d ../tjbot-ce.github.io ]; then echo 'Docs repo found; add docs generation command here.'; else echo 'Skipping docs generation: ../tjbot-ce.github.io not found'; fi"
+description = "Generate versioned API docs in tjbot-ce.github.io"
+run = "uv run python scripts/generate_docs.py"
 
 [tasks.update-deps]
 description = "Check dependency updates"

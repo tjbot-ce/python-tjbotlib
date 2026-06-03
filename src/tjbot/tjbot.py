@@ -27,6 +27,7 @@ from .utils import (
     Hardware,
     Capability,
     ModelRegistry,
+    ModelType,
     get_logger,
     get_shine_colors,
     init_logging,
@@ -35,6 +36,7 @@ from .utils import (
     sleep_sync as tjbot_sleep,
     set_log_level,
 )
+from .utils.logging import TJBotLogLevel
 from .servo import ServoPosition
 from .rpi_drivers import (
     RPiHardwareDriver,
@@ -403,7 +405,7 @@ class TJBot:
             raise TJBotError(f"TJBot is not configured to {capability}.")
         return self.rpi_driver
 
-    def set_log_level(self, level: str) -> None:
+    def set_log_level(self, level: TJBotLogLevel) -> None:
         set_log_level(level)
 
     async def sleep(self, sec: float) -> None:
@@ -698,7 +700,7 @@ class TJBot:
                 os.remove(photo_path)
 
     def get_local_models(
-        self, model_type: Optional[str] = None, installed_only: bool = True
+        self, model_type: Optional[ModelType] = None, installed_only: bool = True
     ) -> List[str]:
         registry = ModelRegistry.get_instance()
         models = registry.lookup_models(model_type, installed_only)

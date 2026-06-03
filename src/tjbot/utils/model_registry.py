@@ -19,7 +19,7 @@ import shutil
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, Union
 from urllib.parse import urlparse
 
 import requests
@@ -28,7 +28,28 @@ import yaml
 from .errors import TJBotError
 
 
-ModelType = str
+ModelType = Literal[
+    "stt",
+    "tts",
+    "vad",
+    "vision.object-recognition",
+    "vision.classification",
+    "vision.face-detection",
+    "vision.image-description",
+]
+
+STTModelKind = Literal[
+    "offline",
+    "offline-whisper",
+    "streaming-zipformer",
+    "streaming-paraformer",
+    "streaming",
+]
+TTSModelKind = Literal["vits-piper", "tacotron", "fastpitch", "streaming"]
+VisionModelKind = Literal[
+    "detection", "classification", "face-detection", "image-description"
+]
+ModelKind = Union[STTModelKind, TTSModelKind, VisionModelKind]
 
 
 @dataclass
@@ -39,7 +60,7 @@ class ModelMetadata:
     url: str
     folder: str
     required: List[str]
-    kind: Optional[str] = None
+    kind: Optional[ModelKind] = None
     labelUrl: Optional[str] = None
     inputShape: Optional[List[int]] = None
 

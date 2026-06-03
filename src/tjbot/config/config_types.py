@@ -15,6 +15,7 @@
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
+from ..utils.logging import TJBotLogLevel
 
 
 class TJBotBaseModel(BaseModel):
@@ -22,7 +23,7 @@ class TJBotBaseModel(BaseModel):
 
 
 class LogConfig(TJBotBaseModel):
-    level: Optional[str] = "info"
+    level: Optional[TJBotLogLevel] = "info"
 
 
 class VADConfig(TJBotBaseModel):
