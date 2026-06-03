@@ -37,6 +37,39 @@ def read_version(pyproject_path: Path) -> str:
     return version.strip()
 
 
+def inject_sdk_module_sidebar(package_page: Path, modules: list[str]) -> None:
+    if not package_page.exists():
+        return
+
+    content = package_page.read_text(encoding="utf-8")
+    marker = "<h2>API Documentation</h2>"
+    if marker not in content or "SDK Modules" in content:
+        return
+
+    links = []
+    for module in modules:
+        if module == "tjbot":
+            continue
+
+        leaf = module.split(".", 1)[1]
+        links.append(
+            f'<li><a class="module" href="tjbot/{leaf}.html">{leaf}</a></li>'
+        )
+
+    if not links:
+        return
+
+    sdk_nav = (
+        "\n<h3>SDK Modules</h3>\n"
+        "<ul class=\"memberlist\">\n"
+        + "\n".join(links)
+        + "\n</ul>\n"
+    )
+
+    content = content.replace(marker, marker + sdk_nav, 1)
+    package_page.write_text(content, encoding="utf-8")
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     docs_repo = (repo_root / "../tjbot-ce.github.io").resolve()
@@ -55,17 +88,35 @@ def main() -> int:
         src_dir if not env.get("PYTHONPATH") else f"{src_dir}:{env['PYTHONPATH']}"
     )
 
+    # Mirror node-tjbotlib docs breadth by documenting key SDK subpackages.
+    modules = [
+        "tjbot",
+        "tjbot.camera",
+        "tjbot.config",
+        "tjbot.led",
+        "tjbot.microphone",
+        "tjbot.rpi_drivers",
+        "tjbot.servo",
+        "tjbot.speaker",
+        "tjbot.stt",
+        "tjbot.tts",
+        "tjbot.utils",
+        "tjbot.vision",
+    ]
+
     command = [
         sys.executable,
         "-m",
         "pdoc",
         "--output-directory",
         str(out_dir),
-        "tjbot",
+        *modules,
     ]
 
     print(f"Generating docs to {out_dir}")
     subprocess.run(command, cwd=repo_root, env=env, check=True)
+
+    inject_sdk_module_sidebar(out_dir / "tjbot.html", modules)
 
     # Keep generated docs behavior aligned with static docs hosting patterns.
     (out_dir / ".nojekyll").touch(exist_ok=True)
