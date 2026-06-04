@@ -26,7 +26,7 @@ from ...utils.credentials import load_ibm_watson_cloud_credentials
 
 try:
     from ibm_watson import SpeechToTextV1
-    from ibm_watson.websocket import AudioSource, RecognizeCallback
+    from ibm_watson.websocket import AudioSource, RecognizeCallback  # type: ignore[import-untyped]
     from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 except ImportError:
     SpeechToTextV1 = None
@@ -171,7 +171,7 @@ class IBMWatsonSTTEngine(STTEngine):
         try:
             watson_audio = AudioSource(_IterableAudioSourceStream(audio_stream))
 
-            class _RecognizeCallback(callback_base):
+            class _RecognizeCallback(callback_base):  # type: ignore[misc, valid-type]
                 def __init__(self, engine: "IBMWatsonSTTEngine"):
                     super().__init__()
                     self._engine = engine

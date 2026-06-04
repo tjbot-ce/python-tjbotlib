@@ -82,13 +82,14 @@ class STTController:
                 "Microphone controller is not available for STT transcription."
             )
 
+        mc = self.microphone_controller
         while True:
-            self.microphone_controller.start()
-            active_stream = self.microphone_controller.get_input_stream()
+            mc.start()
+            active_stream = mc.get_input_stream()
 
             def _stop_streaming(_stream=active_stream) -> None:
                 _stream.stop()
-                self.microphone_controller.pause()
+                mc.pause()
 
             options["stop_stream"] = _stop_streaming
 

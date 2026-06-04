@@ -25,7 +25,7 @@ from ...utils.errors import TJBotError
 from ...utils.credentials import load_azure_credentials
 
 try:
-    import azure.cognitiveservices.speech as speechsdk
+    import azure.cognitiveservices.speech as speechsdk  # type: ignore[import-untyped]
 except ImportError:
     speechsdk = None
 

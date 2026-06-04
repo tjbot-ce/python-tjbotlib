@@ -26,6 +26,7 @@ from ..vision_engine import (
     ImageClassificationResult,
     ImageDescriptionResult,
     ImageInput,
+    Landmark,
     ObjectDetectionResult,
     VisionEngine,
 )
@@ -544,7 +545,7 @@ class ONNXVisionEngine(VisionEngine):
         model_width, model_height = model_input_size
         faces: List[FaceDetectionMetadata] = []
 
-        scales = [
+        scales: List[Dict[str, Any]] = [
             {"stride": 8, "scoreKey": "446", "bboxKey": "449", "kpsKey": "452"},
             {"stride": 16, "scoreKey": "466", "bboxKey": "469", "kpsKey": "472"},
             {"stride": 32, "scoreKey": "486", "bboxKey": "489", "kpsKey": "492"},
@@ -591,7 +592,7 @@ class ONNXVisionEngine(VisionEngine):
                 box_w = x2 - x1
                 box_h = y2 - y1
 
-                landmarks = []
+                landmarks: List[Landmark] = []
                 if kps is not None and len(kps) >= i * 10 + 10:
                     landmark_types = [
                         "eye-left",

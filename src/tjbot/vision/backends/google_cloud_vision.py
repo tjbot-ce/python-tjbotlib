@@ -19,10 +19,12 @@ from ...config.config_types import SeeBackendGoogleCloudConfig
 from ...utils.errors import TJBotError
 from ...utils.credentials import load_google_cloud_credentials
 from ..vision_engine import (
+    FaceDetectionMetadata,
     FaceDetectionResult,
     ImageClassificationResult,
     ImageDescriptionResult,
     ImageInput,
+    Landmark,
     ObjectDetectionResult,
     VisionEngine,
 )
@@ -189,7 +191,7 @@ class GoogleCloudVisionEngine(VisionEngine):
                     f"Google Cloud Vision API error during face detection: {response.error.message}"
                 )
 
-            metadata = []
+            metadata: List[FaceDetectionMetadata] = []
             for face in response.face_annotations:
                 confidence = float(face.detection_confidence or 0.0)
                 if confidence < threshold:
@@ -201,7 +203,7 @@ class GoogleCloudVisionEngine(VisionEngine):
                 max_x = max((v.x or 0) for v in vertices) if vertices else 0
                 max_y = max((v.y or 0) for v in vertices) if vertices else 0
 
-                landmarks = [
+                landmarks: List[Landmark] = [
                     {
                         "x": float(landmark.position.x or 0.0),
                         "y": float(landmark.position.y or 0.0),

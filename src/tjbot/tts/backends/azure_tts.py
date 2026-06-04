@@ -21,7 +21,7 @@ from ...utils.errors import TJBotError
 from ..tts_engine import TTSEngine
 
 try:
-    import azure.cognitiveservices.speech as speechsdk
+    import azure.cognitiveservices.speech as speechsdk  # type: ignore[import-untyped]
 except ImportError:
     speechsdk = None
 
