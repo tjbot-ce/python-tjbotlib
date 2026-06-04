@@ -52,18 +52,14 @@ def inject_sdk_module_sidebar(package_page: Path, modules: list[str]) -> None:
             continue
 
         leaf = module.split(".", 1)[1]
-        links.append(
-            f'<li><a class="module" href="tjbot/{leaf}.html">{leaf}</a></li>'
-        )
+        links.append(f'<li><a class="module" href="tjbot/{leaf}.html">{leaf}</a></li>')
 
     if not links:
         return
 
     sdk_nav = (
         "\n<h3>SDK Modules</h3>\n"
-        "<ul class=\"memberlist\">\n"
-        + "\n".join(links)
-        + "\n</ul>\n"
+        '<ul class="memberlist">\n' + "\n".join(links) + "\n</ul>\n"
     )
 
     content = content.replace(marker, marker + sdk_nav, 1)

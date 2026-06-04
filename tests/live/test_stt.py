@@ -167,6 +167,12 @@ def run_test():
         shutdown_event.set()
         print(f"\n{COLORS['YELLOW']}Shutting down...{COLORS['RESET']}")
         stop_live_microphone()
+    except TJBotError as error:
+        if error.code == "stt.aborted" or is_shutting_down:
+            pass  # Normal abort during shutdown
+        else:
+            print(f"✗ STT test failed: {error}")
+            sys.exit(1)
     except Exception as error:
         if not is_shutting_down:
             print(f"✗ STT test failed: {error}")

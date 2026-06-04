@@ -100,6 +100,7 @@ class AzureSTTEngine(STTEngine):
         abort_signal = options.get("abort_signal")
         on_partial_result = options.get("on_partial_result")
         on_final_result = options.get("on_final_result")
+        stop_stream = options.get("stop_stream")
         interim_results = bool(
             getattr(self.backend_config, "interim_results", False)
             if self.backend_config
@@ -186,7 +187,9 @@ class AzureSTTEngine(STTEngine):
                 break
 
         recognizer.stop_continuous_recognition()
-        push_thread.join()
+        if callable(stop_stream):
+            stop_stream()
+        push_thread.join(timeout=2.0)
 
         if self._is_abort_signal_set(abort_signal):
             raise TJBotError("Azure STT transcription aborted", code="stt.aborted")

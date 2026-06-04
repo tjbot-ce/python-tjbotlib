@@ -84,9 +84,13 @@ class STTController:
 
         while True:
             self.microphone_controller.start()
-            active_stream: Iterable[bytes] = (
-                self.microphone_controller.get_input_stream()
-            )
+            active_stream = self.microphone_controller.get_input_stream()
+
+            def _stop_streaming(_stream=active_stream) -> None:
+                _stream.stop()
+                self.microphone_controller.pause()
+
+            options["stop_stream"] = _stop_streaming
 
             try:
                 transcript = self.engine.transcribe(active_stream, options)

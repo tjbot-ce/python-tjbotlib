@@ -132,6 +132,7 @@ class IBMWatsonSTTEngine(STTEngine):
         abort_signal = options.get("abort_signal")
         on_partial_result = options.get("on_partial_result")
         on_final_result = options.get("on_final_result")
+        stop_stream = options.get("stop_stream")
 
         self.raise_if_aborted(options)
 
@@ -219,6 +220,8 @@ class IBMWatsonSTTEngine(STTEngine):
                         self.final_parts.append(text)
                         if on_final_result:
                             on_final_result(text)
+                        if stop_stream:
+                            stop_stream()
 
                 def on_transcription(self, transcript):
                     if not transcript:

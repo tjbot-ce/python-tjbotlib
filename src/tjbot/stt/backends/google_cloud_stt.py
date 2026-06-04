@@ -300,6 +300,12 @@ class GoogleCloudSTTEngine(STTEngine):
                     latest_partial = ""
                     if on_final_result:
                         on_final_result(transcript)
+                    # Stop streaming as soon as we have a final result, matching
+                    # Node.js behaviour of resolving on the first is_final response.
+                    stop_stream = options.get("stop_stream") if options else None
+                    if callable(stop_stream):
+                        stop_stream()
+                    break
 
             transcript = final_transcript or latest_partial
             if not transcript:
@@ -310,8 +316,9 @@ class GoogleCloudSTTEngine(STTEngine):
             return transcript
 
         except Exception as e:
-            logger.error("Google Cloud STT v2 error: %s", e)
             if isinstance(e, TJBotError):
+                if e.code != "stt.aborted":
+                    logger.error("Google Cloud STT v2 error: %s", e)
                 raise
 
             timeout_like_stream_end = is_timeout_like_stream_end_reason(str(e))

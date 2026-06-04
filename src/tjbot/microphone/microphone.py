@@ -14,8 +14,10 @@
 
 import errno
 import re
+import select
 import signal
 import subprocess
+import threading
 from typing import Iterator, Optional
 
 from ..utils.errors import TJBotError
@@ -27,10 +29,19 @@ _EMO = LogEmoji.MIC
 
 
 class _MicrophoneInputStream:
-    """Iterator/file-like adapter over the controller's live arecord stdout."""
+    """Iterator/file-like adapter over the controller's live arecord stdout.
+
+    Uses select() with a short timeout instead of a blocking read so that
+    stop() can interrupt the iterator from another thread within ~50 ms.
+    """
 
     def __init__(self, controller: "MicrophoneController"):
         self._controller = controller
+        self._stop_event = threading.Event()
+
+    def stop(self) -> None:
+        """Signal this stream to stop yielding chunks."""
+        self._stop_event.set()
 
     def __iter__(self) -> Iterator[bytes]:
         bytes_per_sample = 2
@@ -38,10 +49,22 @@ class _MicrophoneInputStream:
             self._controller._chunk_size * self._controller._channels * bytes_per_sample
         )
 
-        while self._controller._is_started and self._controller._mic_process:
+        while (
+            not self._stop_event.is_set()
+            and self._controller._is_started
+            and self._controller._mic_process
+        ):
             process = self._controller._mic_process
             if not process.stdout:
                 break
+
+            try:
+                ready, _, _ = select.select([process.stdout], [], [], 0.05)
+            except (ValueError, OSError):
+                break
+
+            if not ready:
+                continue
 
             try:
                 chunk = process.stdout.read(chunk_bytes)
@@ -76,7 +99,6 @@ class MicrophoneController:
 
     def __init__(self):
         self._mic_process: Optional[subprocess.Popen[bytes]] = None
-        self._mic_input_stream = _MicrophoneInputStream(self)
         self._is_started = False
         self._is_paused = False
 
@@ -229,10 +251,15 @@ class MicrophoneController:
         _logger.debug("%s microphone stopped", _EMO)
 
     def get_input_stream(self) -> _MicrophoneInputStream:
-        """Get the microphone input stream."""
+        """Get the microphone input stream.
+
+        Returns a fresh _MicrophoneInputStream instance to avoid iterator state
+        issues when multiple transcriptions occur in sequence. Each call creates
+        a new iterator adapter over the same subprocess stdout.
+        """
         if not self._is_started:
             self.start()
-        return self._mic_input_stream
+        return _MicrophoneInputStream(self)
 
     def cleanup(self) -> None:
         """Clean up resources."""
