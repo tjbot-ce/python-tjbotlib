@@ -52,6 +52,7 @@ dev = [
     "ruff>=0.1.0",
     "pdoc>=14.6.0",
     "InquirerPy>=0.3.4",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.uv]
