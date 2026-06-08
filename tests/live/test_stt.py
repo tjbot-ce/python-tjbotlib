@@ -241,27 +241,51 @@ def prompt_backend_specific_options(selected_backend: str) -> Dict[str, Any]:
         return prompt_azure_options()
     return {}
 
-
 def prompt_sherpa_onnx_options() -> Dict[str, Any]:
+    # Get available models from metadata
     registry = ModelRegistry.get_instance()
-    models = registry.lookup_models("stt", False)
-    if not models:
-        print("\nNo STT models found in model registry; using backend defaults")
-        return {}
+    models = registry.lookup_models('stt', False)
 
-    choices = []
-    for model in models:
-        downloaded = registry.is_model_downloaded(model.key)
-        status = "✓ downloaded" if downloaded else "✗ not downloaded"
-        choices.append(
-            {"name": f"{model.label or model.key} {status}", "value": model.key}
-        )
+    # Get installed models once (outside the loop for efficiency)
+    tjbot = TJBot.get_instance()
+    installed_model_keys = tjbot.get_local_models('stt', True)
+    installed_models = set(installed_model_keys)
+    choices = list(map(lambda m: {
+        "name": f"{m.label or m.key} {'✓ downloaded' if m.key in installed_models else '✗ not downloaded'}",
+        "value": m.key,
+        "short": m.label or m.key,
+    }, models
+    ))
 
     model_key = select_option(
-        "Select a Sherpa-ONNX STT model:", choices, default=models[0].key
+        message="Select a Sherpa-ONNX STT model:",
+        choices=choices,
+        default=models[0].key,
     )
-    return {"model": model_key}
 
+    selected_model = next((m for m in models if m.key == model_key), None)
+    if not selected_model:
+        raise ValueError(f"Selected model not found in registry: {model_key}")
+
+    config: Dict[str, Any] = {
+        "model": selected_model.key,
+    }
+
+    # For offline models, ask about VAD
+    model_kind = selected_model.kind or ""
+    if model_kind.startswith("offline"):
+        enable_vad = select_option(
+            "Enable Voice Activity Detection (VAD) for better endpointing?",
+            [
+                {"name": "Yes", "value": True},
+                {"name": "No", "value": False},
+            ],
+            default=True,
+        )
+
+        config["vad"] = {"enabled": enable_vad}
+
+    return config
 
 def prompt_ibm_watson_options() -> Dict[str, Any]:
     model = select_option(
