@@ -31,12 +31,12 @@ run = "uv run pymarkdownlnt scan '**/*.md' --exclude .venv --exclude vendor"
 description = "Auto-fix markdown files (optional markdownlint-cli)"
 run = "uv run pymarkdownlnt fix '**/*.md' --exclude .venv --exclude vendor"
 
-[tasks.publish]
+[tasks.publish-registry]
 description = "Publish python-tjbotlib to PyPI"
 depends = ["build", "test"]
 run = "uv build && uv publish"
 
-[tasks.publish-dry-run]
+[tasks.publish-registry-dry-run]
 description = "Dry-run publish python-tjbotlib to PyPI"
 depends = ["build", "test"]
 run = "uv build && uv publish --dry-run"
