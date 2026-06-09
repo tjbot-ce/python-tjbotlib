@@ -104,7 +104,9 @@ class SpeakerController:
                 self.device,
             )
         else:
-            logger.debug("Playing audio file %s through default audio device", file_path)
+            logger.debug(
+                "Playing audio file %s through default audio device", file_path
+            )
 
         try:
             player.play(file_path, self.device)
