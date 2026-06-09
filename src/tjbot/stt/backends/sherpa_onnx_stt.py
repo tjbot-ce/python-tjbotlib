@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Iterable, Callable, Optional, Any, Dict
 import logging
 import numpy as np
+from scipy import signal
 
 from ..stt_engine import STTEngine, STTRequestOptions
 from ...utils.errors import TJBotError
@@ -295,6 +296,36 @@ class SherpaONNXSTTEngine(STTEngine):
         if callable(pop):
             pop()
 
+    def _normalize_audio_to_16khz_mono(self, samples: np.ndarray) -> np.ndarray:
+        """Resample and downmix audio to 16 kHz mono for Sherpa compatibility.
+
+        Args:
+            samples: Float32 PCM samples in the range [-1.0, 1.0]
+
+        Returns:
+            Resampled float32 mono samples at 16 kHz
+        """
+        target_rate = 16000
+        source_rate = self.microphone_rate
+        channels = self.microphone_channels
+
+        # If already 16 kHz mono, return as-is
+        if source_rate == target_rate and channels == 1:
+            return samples
+
+        # Downmix to mono if needed
+        if channels > 1:
+            # Average across channels
+            samples = np.mean(samples.reshape(-1, channels), axis=1)
+
+        # Resample if needed
+        if source_rate != target_rate:
+            # Use scipy resample for high-quality resampling
+            num_samples = int(len(samples) * target_rate / source_rate)
+            samples = signal.resample(samples, num_samples)
+
+        return samples
+
     def _transcribe_offline_with_vad(
         self,
         audio_stream: Iterable[bytes],
@@ -311,6 +342,7 @@ class SherpaONNXSTTEngine(STTEngine):
             if self._is_abort_signal_set(abort_signal):
                 raise TJBotError("STT transcription was aborted.", code="stt.aborted")
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+            samples = self._normalize_audio_to_16khz_mono(samples)
             vad.accept_waveform(samples)
 
             while not self._vad_queue_empty(vad):
@@ -352,6 +384,7 @@ class SherpaONNXSTTEngine(STTEngine):
             if self._is_abort_signal_set(abort_signal):
                 raise TJBotError("STT transcription was aborted.", code="stt.aborted")
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+            samples = self._normalize_audio_to_16khz_mono(samples)
             rms = float(np.sqrt(np.mean(samples**2))) if samples.size else 0.0
             duration_ms = (len(samples) / sample_rate) * 1000.0
 
@@ -414,6 +447,7 @@ class SherpaONNXSTTEngine(STTEngine):
             if self._is_abort_signal_set(abort_signal):
                 raise TJBotError("STT transcription was aborted.", code="stt.aborted")
             samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+            samples = self._normalize_audio_to_16khz_mono(samples)
             stream.accept_waveform(16000, samples)
 
             while recognizer.is_ready(stream):

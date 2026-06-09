@@ -17,6 +17,7 @@ from typing import Any, Iterable, Optional, cast
 import logging
 from ..stt_engine import STTEngine, STTRequestOptions
 from ..stt_utils import (
+    is_no_speech_like_reason,
     is_timeout_like_stream_end_reason,
     resolve_transcript_for_stream_end,
 )
@@ -138,9 +139,12 @@ class IBMWatsonSTTEngine(STTEngine):
 
         # We need to map config to params
         # model, inactivity_timeout, etc.
-        model = (
-            self.backend_config.model if self.backend_config else "en-US_BroadbandModel"
-        )
+        # Require explicit model (no default) to match Node behavior
+        model = self.backend_config.model if self.backend_config else None
+        if not model:
+            raise TJBotError(
+                "IBM Watson STT model not specified. Provide model in listen.backend.ibm-watson-stt config."
+            )
         inactivity_timeout = (
             self.backend_config.inactivity_timeout
             if (
@@ -291,11 +295,14 @@ class IBMWatsonSTTEngine(STTEngine):
                 callback.timeout_like_end
                 or is_timeout_like_stream_end_reason(callback.error_message)
             )
+            no_speech_like_error = is_no_speech_like_reason(callback.error_message)
+            # Only treat as timeout-like if we actually got a timeout-like error/reason,
+            # not just because we didn't get a final transcript (matching Node behavior)
             transcript = resolve_transcript_for_stream_end(
                 final_transcript,
                 callback.latest_partial,
                 allow_partial_on_timeout_like_end=True,
-                timeout_like_end=timeout_like_end or not bool(final_transcript),
+                timeout_like_end=timeout_like_end,
             )
 
             if transcript:
@@ -303,13 +310,17 @@ class IBMWatsonSTTEngine(STTEngine):
                     on_final_result(transcript)
                 return transcript
 
-            if callback.error_message and not timeout_like_end:
+            if (
+                callback.error_message
+                and not timeout_like_end
+                and not no_speech_like_error
+            ):
                 raise TJBotError(
                     "IBM Watson STT recognition failed",
                     cause=RuntimeError(callback.error_message),
                 )
 
-            if timeout_like_end:
+            if timeout_like_end or no_speech_like_error:
                 raise TJBotError(
                     "IBM Watson STT: No speech could be recognized",
                     code="stt.no-speech",
@@ -321,7 +332,7 @@ class IBMWatsonSTTEngine(STTEngine):
 
         except Exception as e:
             if isinstance(e, TJBotError):
-                if e.code != "stt.aborted":
+                if e.code not in {"stt.aborted", "stt.no-speech"}:
                     logger.error(f"Watson STT Transcribe error: {e}")
                 raise
             logger.error(f"Watson STT Transcribe error: {e}")

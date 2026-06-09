@@ -175,15 +175,12 @@ class GoogleCloudSTTEngine(STTEngine):
 
         credentials_path = (cfg.credentials_path or "") if cfg else ""
         load_google_cloud_credentials(credentials_path)
-        self.project_id = _resolve_google_project_id()
-        if not self.project_id:
-            raise TJBotError(
-                "Google Cloud project_id could not be determined. Set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or provide credentials discoverable via Application Default Credentials."
-            )
 
         endpoint = f"{region}-speech.googleapis.com"
         try:
             self.client = SpeechClient(client_options={"api_endpoint": endpoint})
+            # Defer project_id resolution to transcription time (when client is available)
+            self.project_id = ""
             logger.info(
                 "Google Cloud STT v2 initialized (model=%s, region=%s)", model, region
             )
@@ -225,6 +222,24 @@ class GoogleCloudSTTEngine(STTEngine):
         interim_results: bool = (
             cfg.interim_results if (cfg and cfg.interim_results is not None) else True
         )
+
+        # Resolve project_id at transcription time from the client (matching Node behavior)
+        if not self.project_id:
+            try:
+                creds = getattr(self.client, "_credentials", None)
+                if creds is not None and hasattr(creds, "project_id"):
+                    self.project_id = creds.project_id
+                if not self.project_id:
+                    self.project_id = _resolve_google_project_id()
+                if not self.project_id:
+                    raise TJBotError(
+                        "Google Cloud project_id could not be determined. Set GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT or provide credentials discoverable via Application Default Credentials."
+                    )
+            except TJBotError:
+                raise
+            except Exception as e:
+                logger.error("Failed to resolve Google Cloud project_id: %s", e)
+                raise TJBotError(f"Failed to resolve Google Cloud project_id: {e}")
 
         recognizer_path = f"projects/{self.project_id}/locations/{region}/recognizers/_"
 
@@ -317,7 +332,7 @@ class GoogleCloudSTTEngine(STTEngine):
 
         except Exception as e:
             if isinstance(e, TJBotError):
-                if e.code != "stt.aborted":
+                if e.code not in {"stt.aborted", "stt.no-speech"}:
                     logger.error("Google Cloud STT v2 error: %s", e)
                 raise
 

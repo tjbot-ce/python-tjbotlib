@@ -39,6 +39,13 @@ _TIMEOUT_LIKE_STREAM_END_PATTERNS = [
     re.compile(r"inactivity timeout", re.IGNORECASE),
 ]
 
+_NO_SPEECH_LIKE_REASON_PATTERNS = [
+    re.compile(r"no speech", re.IGNORECASE),
+    re.compile(r"no audio", re.IGNORECASE),
+    re.compile(r"speech inactivity", re.IGNORECASE),
+    re.compile(r"inactivity timeout", re.IGNORECASE),
+]
+
 
 def infer_local_model_flavor(
     model_name: Optional[str] = None, model_url: Optional[str] = None
@@ -122,6 +129,12 @@ def is_timeout_like_stream_end_reason(reason: Optional[str]) -> bool:
     if not reason:
         return False
     return any(pattern.search(reason) for pattern in _TIMEOUT_LIKE_STREAM_END_PATTERNS)
+
+
+def is_no_speech_like_reason(reason: Optional[str]) -> bool:
+    if not reason:
+        return False
+    return any(pattern.search(reason) for pattern in _NO_SPEECH_LIKE_REASON_PATTERNS)
 
 
 def resolve_transcript_for_stream_end(

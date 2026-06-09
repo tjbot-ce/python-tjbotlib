@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 import logging
 import threading
 from ..stt_engine import STTEngine, STTRequestOptions
@@ -109,6 +109,93 @@ class AzureSTTEngine(STTEngine):
 
         self.raise_if_aborted(options)
 
+        # For non-interim mode, use one-shot recognition (matching Node behavior)
+        if not interim_results:
+            return self._transcribe_once(
+                audio_stream, abort_signal, on_final_result, stop_stream
+            )
+
+        # For continuous/interim mode, use continuous recognition
+        return self._transcribe_continuous(
+            audio_stream, abort_signal, on_partial_result, on_final_result, stop_stream
+        )
+
+    def _transcribe_once(
+        self,
+        audio_stream: Iterable[bytes],
+        abort_signal: Optional[object],
+        on_final_result: Optional[Callable[[str], None]],
+        stop_stream: Optional[Callable[[], None]],
+    ) -> str:
+        """One-shot recognition for non-interim mode (matching Node's recognizeOnceAsync)."""
+        sdk = speechsdk
+
+        stream_format = sdk.audio.AudioStreamFormat(
+            samples_per_second=self.microphone_rate,
+            bits_per_sample=16,
+            channels=self.microphone_channels,
+        )
+        push_stream = sdk.audio.PushAudioInputStream(stream_format=stream_format)
+        audio_config = sdk.audio.AudioConfig(stream=push_stream)
+        recognizer = sdk.SpeechRecognizer(
+            speech_config=self.speech_config, audio_config=audio_config
+        )
+
+        stop_push_event = threading.Event()
+        stream_error: list[Exception] = []
+
+        def processing_func() -> None:
+            try:
+                for chunk in audio_stream:
+                    if stop_push_event.is_set() or self._is_abort_signal_set(
+                        abort_signal
+                    ):
+                        break
+                    push_stream.write(chunk)
+            except Exception as error:  # pragma: no cover - defensive handling
+                stream_error.append(error)
+            finally:
+                push_stream.close()
+
+        push_thread = threading.Thread(target=processing_func, daemon=True)
+        push_thread.start()
+
+        try:
+            result = recognizer.recognize_once_async().get()
+        finally:
+            stop_push_event.set()
+            push_thread.join(timeout=0.05)
+
+        if self._is_abort_signal_set(abort_signal):
+            if callable(stop_stream):
+                stop_stream()
+            raise TJBotError("Azure STT transcription aborted", code="stt.aborted")
+
+        if stream_error:
+            if callable(stop_stream):
+                stop_stream()
+            raise TJBotError(
+                "Azure STT audio stream error during one-shot transcription",
+                cause=stream_error[0],
+            )
+
+        return self._handle_recognition_result(
+            result,
+            on_final_result,
+            stop_stream,
+        )
+
+    def _transcribe_continuous(
+        self,
+        audio_stream: Iterable[bytes],
+        abort_signal: Optional[object],
+        on_partial_result: Optional[Callable[[str], None]],
+        on_final_result: Optional[Callable[[str], None]],
+        stop_stream: Optional[Callable[[], None]],
+    ) -> str:
+        """Continuous recognition for interim/streaming mode."""
+        sdk = speechsdk
+
         # Handling streaming audio with Azure SDK is done via PushAudioInputStream
         stream_format = sdk.audio.AudioStreamFormat(
             samples_per_second=self.microphone_rate,
@@ -149,10 +236,6 @@ class AzureSTTEngine(STTEngine):
                 final_transcript.append(text)
                 if on_final_result:
                     on_final_result(text)
-                # When not streaming interim results, resolve on the first final result
-                # (equivalent to Node's recognizeOnceAsync)
-                if not interim_results:
-                    done_event.set()
 
         def recognizing_cb(evt):
             nonlocal latest_partial
@@ -231,3 +314,38 @@ class AzureSTTEngine(STTEngine):
                 "Azure STT: No speech could be recognized", code="stt.no-speech"
             )
         return transcript
+
+    def _handle_recognition_result(
+        self,
+        result: Any,
+        on_final_result: Optional[Callable[[str], None]],
+        stop_stream: Optional[Callable[[], None]],
+    ) -> str:
+        """Handle Azure speech recognition result (for one-shot mode)."""
+        sdk = speechsdk
+
+        if result.reason == sdk.ResultReason.RecognizedSpeech:
+            if on_final_result:
+                on_final_result(result.text)
+            if callable(stop_stream):
+                stop_stream()
+            return result.text.strip()
+        elif result.reason == sdk.ResultReason.NoMatch:
+            if callable(stop_stream):
+                stop_stream()
+            raise TJBotError(
+                "Azure STT: No speech could be recognized", code="stt.no-speech"
+            )
+        elif result.reason == sdk.ResultReason.Canceled:
+            cancellation = sdk.CancellationDetails.from_result(result)
+            if callable(stop_stream):
+                stop_stream()
+            raise TJBotError(
+                f"Azure STT canceled: {cancellation.reason} - {cancellation.error_details}"
+            )
+        else:
+            if callable(stop_stream):
+                stop_stream()
+            raise TJBotError(
+                f"Azure STT recognition failed with reason: {result.reason}"
+            )

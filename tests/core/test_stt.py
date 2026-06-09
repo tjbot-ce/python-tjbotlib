@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+import time
 import types
 from pathlib import Path
 from typing import Any, cast
@@ -30,7 +31,12 @@ from tjbot.config.config_types import (
     STTBackendLocalConfig,
     VADConfig,
 )
-from tjbot.stt.stt_utils import infer_local_model_flavor, infer_stt_mode, to_model_type
+from tjbot.stt.stt_utils import (
+    infer_local_model_flavor,
+    infer_stt_mode,
+    is_no_speech_like_reason,
+    to_model_type,
+)
 from tjbot.utils.errors import TJBotError
 from tjbot.stt.stt import STTController
 
@@ -334,6 +340,40 @@ def test_watson_transcribe_consumes_raw_data_results_payload(monkeypatch):
     assert result == "hello from data"
 
 
+def test_watson_transcribe_maps_no_speech_error_to_stt_no_speech(monkeypatch):
+    from tjbot.stt.backends import watson_stt
+
+    class FakeAudioSource:
+        def __init__(self, input_stream, is_recording=False, is_buffer=False):
+            self.input = input_stream
+            self.is_recording = is_recording
+            self.is_buffer = is_buffer
+
+    class FakeWatsonService:
+        def recognize_using_websocket(self, **kwargs):
+            kwargs["recognize_callback"].on_error("No speech detected")
+
+    monkeypatch.setattr(watson_stt, "AudioSource", FakeAudioSource)
+
+    engine = watson_stt.IBMWatsonSTTEngine(
+        STTBackendIBMWatsonConfig(model="en-US_BroadbandModel")
+    )
+    engine.service = FakeWatsonService()
+    engine.microphone_rate = 16000
+    engine.microphone_channels = 1
+
+    with pytest.raises(TJBotError) as err:
+        engine.transcribe(iter([b"abcd"]))
+
+    assert err.value.code == "stt.no-speech"
+
+
+def test_is_no_speech_like_reason_matches_expected_messages():
+    assert is_no_speech_like_reason("No speech detected")
+    assert is_no_speech_like_reason("inactivity timeout")
+    assert not is_no_speech_like_reason("permission denied")
+
+
 def test_google_cloud_transcribe_uses_runtime_resolved_project_id(
     monkeypatch,
 ):
@@ -451,6 +491,17 @@ def test_azure_transcribe_uses_audio_config_stream_argument(monkeypatch):
             self.canceled = FakeEventSignal()
             self.session_stopped = FakeEventSignal()
 
+        def recognize_once_async(self):
+            class _ResultFuture:
+                @staticmethod
+                def get():
+                    return types.SimpleNamespace(
+                        reason="RecognizedSpeech",
+                        text="hello azure",
+                    )
+
+            return _ResultFuture()
+
         def start_continuous_recognition(self):
             evt = types.SimpleNamespace(
                 result=types.SimpleNamespace(
@@ -478,6 +529,8 @@ def test_azure_transcribe_uses_audio_config_stream_argument(monkeypatch):
         ResultReason=types.SimpleNamespace(
             RecognizedSpeech="RecognizedSpeech",
             RecognizingSpeech="RecognizingSpeech",
+            NoMatch="NoMatch",
+            Canceled="Canceled",
         ),
         audio=types.SimpleNamespace(
             AudioStreamFormat=lambda **kwargs: types.SimpleNamespace(**kwargs),
@@ -503,6 +556,101 @@ def test_azure_transcribe_uses_audio_config_stream_argument(monkeypatch):
     }
     assert captured["chunks"] == [b"abcd"]
     assert result == "hello azure"
+
+
+def test_azure_transcribe_once_does_not_wait_for_stream_exhaustion(monkeypatch):
+    from tjbot.stt.backends import azure_stt
+
+    class SlowSecondChunkStream:
+        def __init__(self):
+            self._count = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            self._count += 1
+            if self._count == 1:
+                return b"first"
+            time.sleep(0.25)
+            raise StopIteration
+
+    class FakeEventSignal:
+        def __init__(self):
+            self._callbacks = []
+
+        def connect(self, callback):
+            self._callbacks.append(callback)
+
+    class FakePushAudioInputStream:
+        def __init__(self, stream_format=None):
+            _ = stream_format
+
+        def write(self, chunk):
+            _ = chunk
+
+        def close(self):
+            return None
+
+    class FakeAudioConfig:
+        def __init__(self, **kwargs):
+            _ = kwargs
+
+    class FakeSpeechRecognizer:
+        def __init__(self, speech_config=None, audio_config=None):
+            _ = speech_config, audio_config
+            self.recognized = FakeEventSignal()
+            self.recognizing = FakeEventSignal()
+            self.canceled = FakeEventSignal()
+            self.session_stopped = FakeEventSignal()
+
+        def recognize_once_async(self):
+            class _ResultFuture:
+                @staticmethod
+                def get():
+                    return types.SimpleNamespace(
+                        reason="RecognizedSpeech",
+                        text="hello fast",
+                    )
+
+            return _ResultFuture()
+
+    class FakeSpeechConfig:
+        def __init__(self, subscription=None, region=None):
+            _ = subscription, region
+            self.speech_recognition_language = None
+
+    fake_speechsdk = types.SimpleNamespace(
+        SpeechConfig=FakeSpeechConfig,
+        SpeechRecognizer=FakeSpeechRecognizer,
+        ResultReason=types.SimpleNamespace(
+            RecognizedSpeech="RecognizedSpeech",
+            NoMatch="NoMatch",
+            Canceled="Canceled",
+        ),
+        audio=types.SimpleNamespace(
+            AudioStreamFormat=lambda **kwargs: types.SimpleNamespace(**kwargs),
+            PushAudioInputStream=FakePushAudioInputStream,
+            AudioConfig=FakeAudioConfig,
+        ),
+    )
+
+    monkeypatch.setattr(azure_stt, "speechsdk", fake_speechsdk)
+    monkeypatch.setattr(
+        azure_stt,
+        "load_azure_credentials",
+        lambda _path: {"speechKey": "key", "speechRegion": "eastus"},
+    )
+
+    engine = azure_stt.AzureSTTEngine(STTBackendAzureConfig(language="en-US"))
+    engine.initialize(16000, 1)
+
+    start = time.monotonic()
+    result = engine.transcribe(SlowSecondChunkStream())
+    elapsed = time.monotonic() - start
+
+    assert result == "hello fast"
+    assert elapsed < 0.2
 
 
 def test_stt_transcribe_delegates_to_engine():

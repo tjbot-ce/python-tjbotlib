@@ -29,11 +29,11 @@ run = "uv run mypy src"
 
 [tasks.markdownlint]
 description = "Lint markdown files (optional markdownlint-cli)"
-run = "if command -v markdownlint >/dev/null 2>&1; then markdownlint '**/*.md' --ignore .venv --ignore vendor; else echo 'markdownlint not installed; skipping'; fi"
+run = "uv run pymarkdownlnt scan '**/*.md' --exclude .venv --exclude vendor"
 
 [tasks.markdownlint-fix]
 description = "Auto-fix markdown files (optional markdownlint-cli)"
-run = "if command -v markdownlint >/dev/null 2>&1; then markdownlint '**/*.md' --ignore .venv --ignore vendor --fix; else echo 'markdownlint not installed; skipping'; fi"
+run = "uv run pymarkdownlnt fix '**/*.md' --exclude .venv --exclude vendor"
 
 [tasks.test]
 description = "Run core unit tests"

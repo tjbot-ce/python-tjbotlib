@@ -46,7 +46,7 @@ Or, using `uv`:
 
 ```bash
 uv init
-uv add tjbot
+uv add tjbot-ce
 ```
 
 > [!TIP]

@@ -14,9 +14,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
+import sys
 import tarfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Union
@@ -26,6 +29,8 @@ import requests
 import yaml
 
 from .errors import TJBotError
+
+logger = logging.getLogger(__name__)
 
 
 ModelType = Literal[
@@ -67,6 +72,10 @@ class ModelMetadata:
 
 class ModelRegistry:
     _instance: Optional["ModelRegistry"] = None
+
+    _PROGRESS_WIDTH = 20
+    _PROGRESS_COMPLETE = "█"
+    _PROGRESS_INCOMPLETE = "░"
 
     def __init__(self):
         self.registered_models: Dict[str, ModelMetadata] = {}
@@ -161,7 +170,30 @@ class ModelRegistry:
             self.download_model(model_key)
         return model
 
-    def _download_file(self, url: str, destination: Path) -> None:
+    def _write_progress_line(
+        self, action: str, transferred_bytes: int, total_bytes: int
+    ) -> None:
+        if total_bytes <= 0:
+            return
+
+        ratio = min(max(transferred_bytes / total_bytes, 0.0), 1.0)
+        complete = int(ratio * self._PROGRESS_WIDTH)
+        bar = self._PROGRESS_COMPLETE * complete + self._PROGRESS_INCOMPLETE * (
+            self._PROGRESS_WIDTH - complete
+        )
+        transferred_mb = transferred_bytes / (1024 * 1024)
+        total_mb = total_bytes / (1024 * 1024)
+        sys.stderr.write(
+            f"\r{action} [{bar}] {ratio * 100:3.0f}% | {transferred_mb:.1f}/{total_mb:.1f} MB"
+        )
+        sys.stderr.flush()
+
+    def _finish_progress_line(self) -> None:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+
+    def _download_file(self, url: str, destination: Path, max_retries: int = 3) -> None:
+        """Download a file from URL with retry logic and progress bar."""
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         parsed = urlparse(url)
@@ -169,23 +201,79 @@ class ModelRegistry:
             source = Path(parsed.path)
             if not source.exists():
                 raise TJBotError(f"File URL source not found: {url}")
-            shutil.copy2(source, destination)
+
+            total_size = source.stat().st_size
+            transferred = 0
+            with open(source, "rb") as src, open(destination, "wb") as dst:
+                while chunk := src.read(1024 * 1024):
+                    dst.write(chunk)
+                    transferred += len(chunk)
+                    self._write_progress_line("Copying", transferred, total_size)
+
+            if total_size > 0:
+                self._finish_progress_line()
             return
 
-        response = requests.get(url, timeout=60, stream=True)
-        response.raise_for_status()
+        # Download with retry logic
+        attempt = 0
+        last_error = None
 
-        with open(destination, "wb") as file:
-            for chunk in response.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    file.write(chunk)
+        while attempt < max_retries:
+            try:
+                logger.info(
+                    f"Downloading from {url} (attempt {attempt + 1}/{max_retries})"
+                )
+
+                response = requests.get(url, timeout=60, stream=True)
+                response.raise_for_status()
+
+                total_size = int(response.headers.get("content-length", 0))
+                transferred = 0
+
+                with open(destination, "wb") as file:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            file.write(chunk)
+                            transferred += len(chunk)
+                            if total_size > 0:
+                                self._write_progress_line(
+                                    "Downloading", transferred, total_size
+                                )
+
+                if total_size > 0:
+                    self._finish_progress_line()
+
+                logger.info("Download complete")
+                return
+
+            except Exception as e:
+                last_error = e
+                attempt += 1
+                if attempt < max_retries:
+                    delay = min(2**attempt, 10)
+                    logger.info(
+                        f"Retrying download in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.warning(
+                        f"Download failed (attempt {attempt}/{max_retries}): {e}"
+                    )
+
+        if last_error:
+            logger.error(f"Download failed after {max_retries} attempts")
+            raise last_error
 
     def _extract_tar_bz2(self, archive_path: Path, destination_dir: Path) -> None:
+        """Extract a tar.bz2 archive with logging."""
         destination_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Extracting archive...")
         with tarfile.open(archive_path, mode="r:bz2") as archive:
             archive.extractall(path=destination_dir)
+        logger.info("Extraction complete")
 
     def download_model(self, model_key: str) -> None:
+        """Download and cache a model."""
         model = self.lookup_model(model_key)
         cache_dir = self.get_model_cache_dir_for_type(model.type)
         model_path = cache_dir / model.folder
@@ -225,3 +313,5 @@ class ModelRegistry:
             raise TJBotError(
                 f'Model "{model_key}" download incomplete: required files missing'
             )
+
+        logger.info(f'Model "{model_key}" downloaded and extracted to {model_path}')

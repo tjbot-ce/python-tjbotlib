@@ -241,21 +241,26 @@ def prompt_backend_specific_options(selected_backend: str) -> Dict[str, Any]:
         return prompt_azure_options()
     return {}
 
+
 def prompt_sherpa_onnx_options() -> Dict[str, Any]:
     # Get available models from metadata
     registry = ModelRegistry.get_instance()
-    models = registry.lookup_models('stt', False)
+    models = registry.lookup_models("stt", False)
 
     # Get installed models once (outside the loop for efficiency)
     tjbot = TJBot.get_instance()
-    installed_model_keys = tjbot.get_local_models('stt', True)
+    installed_model_keys = tjbot.get_local_models("stt", True)
     installed_models = set(installed_model_keys)
-    choices = list(map(lambda m: {
-        "name": f"{m.label or m.key} {'✓ downloaded' if m.key in installed_models else '✗ not downloaded'}",
-        "value": m.key,
-        "short": m.label or m.key,
-    }, models
-    ))
+    choices = list(
+        map(
+            lambda m: {
+                "name": f"{m.label or m.key} {'✓ downloaded' if m.key in installed_models else '✗ not downloaded'}",
+                "value": m.key,
+                "short": m.label or m.key,
+            },
+            models,
+        )
+    )
 
     model_key = select_option(
         message="Select a Sherpa-ONNX STT model:",
@@ -286,6 +291,7 @@ def prompt_sherpa_onnx_options() -> Dict[str, Any]:
         config["vad"] = {"enabled": enable_vad}
 
     return config
+
 
 def prompt_ibm_watson_options() -> Dict[str, Any]:
     model = select_option(
