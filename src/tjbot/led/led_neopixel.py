@@ -24,10 +24,9 @@ from pathlib import Path
 from typing import Optional
 
 from ..utils.errors import TJBotError
-from ..utils.logging import LogEmoji, get_logger
+from ..utils.logging import get_logger
 
 _logger = get_logger(__name__)
-_EMO = LogEmoji.LED
 
 _HELPER_SCRIPT = Path(__file__).parent / "led_neopixel_ws281x.py"
 
@@ -75,7 +74,7 @@ class LEDNeopixel:
                     )
             spawn_cmd = ["sudo", "-n", sys.executable, str(_HELPER_SCRIPT)]
 
-        _logger.debug("%s spawning NeoPixel helper: %s", _EMO, " ".join(spawn_cmd))
+        _logger.debug("spawning NeoPixel helper: %s", " ".join(spawn_cmd))
 
         self._helper = subprocess.Popen(
             spawn_cmd,
@@ -219,9 +218,7 @@ class LEDNeopixel:
         try:
             msg = json.loads(line)
         except json.JSONDecodeError:
-            _logger.warning(
-                "%s NeoPixel helper sent unparseable response: %s", _EMO, line
-            )
+            _logger.warning("NeoPixel helper sent unparseable response: %s", line)
             return
 
         msg_id = msg.get("id")

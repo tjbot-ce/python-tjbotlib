@@ -18,11 +18,10 @@ from ..config.config_types import LEDCommonAnodeConfig, LEDNeopixelConfig, WaveC
 from ..led import LEDCommonAnode, LEDNeopixel
 from ..servo import LGPIOServoController
 from ..utils import Hardware, convert_hex_to_rgb_color
-from ..utils.logging import LogEmoji, get_logger
+from ..utils.logging import get_logger
 from .rpi_driver import RPiBaseHardwareDriver
 
 logger = get_logger(__name__)
-EMO = LogEmoji.RPI
 
 
 class RPi4Driver(RPiBaseHardwareDriver):
@@ -34,7 +33,7 @@ class RPi4Driver(RPiBaseHardwareDriver):
         self.neopixel_led: Optional[LEDNeopixel] = None
         self.servo: Optional[LGPIOServoController] = None
         self.use_grb_format: bool = True
-        logger.debug("%s initializing RPi4 hardware driver", EMO)
+        logger.debug("initializing RPi4 hardware driver")
 
     def setup_led_common_anode(self, config: LEDCommonAnodeConfig) -> None:
         red_pin = config.red_pin if config.red_pin is not None else 19
@@ -42,8 +41,7 @@ class RPi4Driver(RPiBaseHardwareDriver):
         blue_pin = config.blue_pin if config.blue_pin is not None else 12
 
         logger.debug(
-            "%s initializing Common Anode LED on RED PIN %s, GREEN PIN %s, and BLUE PIN %s",
-            LogEmoji.LED,
+            "initializing Common Anode LED on RED PIN %s, GREEN PIN %s, and BLUE PIN %s",
             red_pin,
             green_pin,
             blue_pin,
@@ -54,7 +52,7 @@ class RPi4Driver(RPiBaseHardwareDriver):
 
     def setup_led_neopixel(self, config: LEDNeopixelConfig) -> None:
         pin = config.gpio_pin if config.gpio_pin is not None else 18
-        logger.debug("%s initializing NeoPixel LED on pin %s", LogEmoji.LED, pin)
+        logger.debug("initializing NeoPixel LED on pin %s", pin)
         self.neopixel_led = LEDNeopixel(pin)
         self.neopixel_led.initialize()
         self.use_grb_format = (
@@ -64,9 +62,7 @@ class RPi4Driver(RPiBaseHardwareDriver):
 
     def setup_servo(self, config: WaveConfig) -> None:
         pin = config.servo_pin if config.servo_pin is not None else 18
-        logger.debug(
-            "%s initializing %s on PIN %s", LogEmoji.SERVO, Hardware.SERVO, pin
-        )
+        logger.debug("initializing %s on PIN %s", Hardware.SERVO, pin)
         self.servo = LGPIOServoController(0, pin)
         self.initialized_hardware.add(Hardware.SERVO)
 
@@ -74,21 +70,16 @@ class RPi4Driver(RPiBaseHardwareDriver):
         if self.common_anode_led:
             self.common_anode_led.render(rgb_color)
         else:
-            logger.warning(
-                "%s attempted to render on an uninitialized Common Anode LED",
-                LogEmoji.LED,
-            )
+            logger.warning("attempted to render on an uninitialized Common Anode LED")
 
     def render_led_neopixel(self, hex_color: str) -> None:
         if not self.neopixel_led:
-            logger.warning(
-                "%s attempted to render on an uninitialized NeoPixel LED", LogEmoji.LED
-            )
+            logger.warning("attempted to render on an uninitialized NeoPixel LED")
             return
 
         color = hex_color.lstrip("#")
         if len(color) != 6:
-            logger.warning("%s invalid NeoPixel color '%s'", LogEmoji.LED, hex_color)
+            logger.warning("invalid NeoPixel color '%s'", hex_color)
             return
 
         if self.use_grb_format:
@@ -114,6 +105,4 @@ class RPi4Driver(RPiBaseHardwareDriver):
         if self.servo:
             self.servo.set_position(position)
         else:
-            logger.warning(
-                "%s attempted to render on an uninitialized servo", LogEmoji.SERVO
-            )
+            logger.warning("attempted to render on an uninitialized servo")

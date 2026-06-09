@@ -22,10 +22,9 @@ from typing import Iterator, Optional
 
 from ..utils.errors import TJBotError
 from ..utils import is_command_available
-from ..utils.logging import LogEmoji, get_logger
+from ..utils.logging import get_logger
 
 _logger = get_logger(__name__)
-_EMO = LogEmoji.MIC
 
 
 class _MicrophoneInputStream:
@@ -70,13 +69,13 @@ class _MicrophoneInputStream:
                 chunk = process.stdout.read(chunk_bytes)
             except OSError as error:
                 if error.errno == errno.EBADF:
-                    _logger.debug("%s microphone stream closed during shutdown", _EMO)
+                    _logger.debug("microphone stream closed during shutdown")
                     break
                 raise
             if not chunk:
                 break
 
-            _logger.debug("%s microphone received %d bytes", _EMO, len(chunk))
+            _logger.debug("microphone received %d bytes", len(chunk))
             yield chunk
 
     def read(self, size: int) -> bytes:
@@ -88,7 +87,7 @@ class _MicrophoneInputStream:
             chunk = process.stdout.read(size)
         except OSError as error:
             if error.errno == errno.EBADF:
-                _logger.debug("%s microphone stream closed during shutdown", _EMO)
+                _logger.debug("microphone stream closed during shutdown")
                 return b""
             raise
         return chunk or b""
@@ -110,7 +109,7 @@ class MicrophoneController:
     def _detect_microphone_device(self) -> str:
         """Auto-detect the first available audio recording device."""
         if not is_command_available("arecord"):
-            _logger.warning("%s arecord command not found", _EMO)
+            _logger.warning("arecord command not found")
             return ""
 
         try:
@@ -118,18 +117,18 @@ class MicrophoneController:
                 ["arecord", "-l"], text=True, stderr=subprocess.DEVNULL
             )
         except Exception as error:
-            _logger.error("%s error detecting microphone device: %s", _EMO, error)
+            _logger.error("error detecting microphone device: %s", error)
             return ""
 
         match = re.search(r"card\s+(\d+):.*device\s+(\d+):", output)
         if not match:
-            _logger.warning("%s no audio capture devices found", _EMO)
+            _logger.warning("no audio capture devices found")
             return ""
 
         card = match.group(1)
         device = match.group(2)
         device_string = f"plughw:{card},{device}"
-        _logger.debug("%s auto-detected microphone device: %s", _EMO, device_string)
+        _logger.debug("auto-detected microphone device: %s", device_string)
         return device_string
 
     def initialize(
@@ -145,22 +144,19 @@ class MicrophoneController:
         if device and device != "":
             self._device = device
             _logger.debug(
-                "%s initializing microphone with user-defined audio device: %s",
-                _EMO,
+                "initializing microphone with user-defined audio device: %s",
                 device,
             )
         else:
             selected_device = self._detect_microphone_device()
             self._device = selected_device
             _logger.debug(
-                "%s initializing microphone with auto-detected audio device: %s",
-                _EMO,
+                "initializing microphone with auto-detected audio device: %s",
                 selected_device,
             )
 
         _logger.debug(
-            "%s initialized microphone with config: rate=%s channels=%s device=%s",
-            _EMO,
+            "initialized microphone with config: rate=%s channels=%s device=%s",
             rate,
             channels,
             self._device,
@@ -202,7 +198,7 @@ class MicrophoneController:
         )
         self._is_started = True
         self._is_paused = False
-        _logger.debug("%s microphone started", _EMO)
+        _logger.debug("microphone started")
 
     def pause(self) -> None:
         """Pause microphone recording."""
@@ -214,7 +210,7 @@ class MicrophoneController:
         ):
             self._mic_process.send_signal(signal.SIGSTOP)
             self._is_paused = True
-            _logger.debug("%s microphone paused", _EMO)
+            _logger.debug("microphone paused")
 
     def resume(self) -> None:
         """Resume microphone recording."""
@@ -226,7 +222,7 @@ class MicrophoneController:
         ):
             self._mic_process.send_signal(signal.SIGCONT)
             self._is_paused = False
-            _logger.debug("%s microphone resumed", _EMO)
+            _logger.debug("microphone resumed")
 
     def stop(self) -> None:
         """Stop microphone recording."""
@@ -248,7 +244,7 @@ class MicrophoneController:
             process.stdout.close()
 
         self._mic_process = None
-        _logger.debug("%s microphone stopped", _EMO)
+        _logger.debug("microphone stopped")
 
     def get_input_stream(self) -> _MicrophoneInputStream:
         """Get the microphone input stream.
@@ -263,5 +259,5 @@ class MicrophoneController:
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        _logger.debug("%s MicrophoneController cleanup", _EMO)
+        _logger.debug("MicrophoneController cleanup")
         self.stop()

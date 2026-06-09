@@ -16,10 +16,9 @@ import subprocess
 from typing import Optional
 
 from ..utils.errors import TJBotError
-from ..utils.logging import LogEmoji, get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
-EMO = LogEmoji.SPEAKER
 
 
 class AudioPlayer:
@@ -30,7 +29,7 @@ class AudioPlayer:
         if device:
             args = ["-D", device, audio_path]
 
-        logger.debug("%s Playing audio with command: aplay %s", EMO, " ".join(args))
+        logger.debug("Playing audio with command: aplay %s", " ".join(args))
 
         result = subprocess.run(
             ["aplay", *args],

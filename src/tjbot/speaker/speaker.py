@@ -16,11 +16,10 @@ import re
 import subprocess
 from typing import Optional, Callable
 
-from ..utils.logging import LogEmoji, get_logger
+from ..utils.logging import get_logger
 from .audio_player import AudioPlayer
 
 logger = get_logger(__name__)
-EMO = LogEmoji.SPEAKER
 
 
 class SpeakerController:
@@ -39,7 +38,7 @@ class SpeakerController:
         try:
             output = subprocess.check_output(["aplay", "-l"], text=True)
         except Exception as error:
-            logger.error("%s Error detecting speaker device: %s", EMO, error)
+            logger.error("Error detecting speaker device: %s", error)
             return ""
 
         lines = output.splitlines()
@@ -65,10 +64,10 @@ class SpeakerController:
             match = re.search(r"card\s+(\d+):.*device\s+(\d+):", target_line)
             if match:
                 device_string = f"plughw:{match.group(1)},{match.group(2)}"
-                logger.debug("%s auto-detected speaker device: %s", EMO, device_string)
+                logger.debug("auto-detected speaker device: %s", device_string)
                 return device_string
 
-        logger.warning("%s No audio playback devices found", EMO)
+        logger.warning("No audio playback devices found")
         return ""
 
     def initialize(self, device: str = "") -> None:
@@ -77,7 +76,7 @@ class SpeakerController:
             selected_device = self._detect_speaker_device()
 
         self.device = selected_device
-        logger.debug("%s Initialized speaker on device %s", EMO, self.device)
+        logger.debug("Initialized speaker on device %s", self.device)
 
     def set_audio_lifecycle_callbacks(
         self,
@@ -100,26 +99,23 @@ class SpeakerController:
 
         if self.device:
             logger.debug(
-                "%s Playing audio file %s through user-defined audio device (%s)",
-                EMO,
+                "Playing audio file %s through user-defined audio device (%s)",
                 file_path,
                 self.device,
             )
         else:
-            logger.debug(
-                "%s Playing audio file %s through default audio device", EMO, file_path
-            )
+            logger.debug("Playing audio file %s through default audio device", file_path)
 
         try:
             player.play(file_path, self.device)
-            logger.debug("%s Audio playback finished", EMO)
+            logger.debug("Audio playback finished")
 
             # Resume listening only after successful playback completion.
             if self.on_resume_callback:
                 self.on_resume_callback()
         except Exception as err:
-            logger.error("%s Error occurred while playing audio: %s", EMO, err)
+            logger.error("Error occurred while playing audio: %s", err)
 
     def cleanup(self) -> None:
         """Release any resources held by this controller (no-op)."""
-        logger.debug("%s SpeakerController cleanup (no-op)", EMO)
+        logger.debug("SpeakerController cleanup (no-op)")
