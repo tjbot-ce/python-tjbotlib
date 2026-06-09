@@ -2089,6 +2089,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "scipy-stubs" },
 ]
 
 [package.dev-dependencies]
@@ -2132,6 +2133,7 @@ requires-dist = [
     { name = "rpi-ws281x", marker = "sys_platform == 'linux'", specifier = ">=5.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "scipy", specifier = ">=1.17.1" },
+    { name = "scipy-stubs", marker = "extra == 'dev'", specifier = ">=1.17.1.5" },
     { name = "sherpa-onnx", specifier = ">=1.10.0" },
     { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.6" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
