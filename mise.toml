@@ -1,19 +1,11 @@
-[tasks.sync-config-schema]
-description = "Sync shared config assets from vendor/tjbot-config"
-run = "python3 scripts/sync_config_schema.py"
-
 [tasks.build]
 description = "Build prep for python-tjbotlib (sync shared config assets)"
 depends = ["sync-config-schema"]
 run = "echo 'Build prep complete: synced config schema/assets'"
 
-[tasks.lint]
-description = "Run lint checks"
-run = "uv run ruff check ."
-
-[tasks.lint-fix]
-description = "Run lint auto-fixes"
-run = "uv run ruff check . --fix"
+[tasks.docs]
+description = "Generate versioned API docs in tjbot-ce.github.io"
+run = "uv run python scripts/generate_docs.py"
 
 [tasks.format]
 description = "Format code"
@@ -23,9 +15,13 @@ run = "uv run ruff format ."
 description = "Check code formatting"
 run = "uv run ruff format . --check"
 
-[tasks.typecheck]
-description = "Run static type checking"
-run = "uv run mypy src"
+[tasks.lint]
+description = "Run lint checks"
+run = "uv run ruff check ."
+
+[tasks.lint-fix]
+description = "Run lint auto-fixes"
+run = "uv run ruff check . --fix"
 
 [tasks.markdownlint]
 description = "Lint markdown files (optional markdownlint-cli)"
@@ -35,19 +31,33 @@ run = "uv run pymarkdownlnt scan '**/*.md' --exclude .venv --exclude vendor"
 description = "Auto-fix markdown files (optional markdownlint-cli)"
 run = "uv run pymarkdownlnt fix '**/*.md' --exclude .venv --exclude vendor"
 
+[tasks.publish]
+description = "Publish python-tjbotlib to PyPI"
+depends = ["build", "test"]
+run = "uv build && uv publish"
+
+[tasks.publish-dry-run]
+description = "Dry-run publish python-tjbotlib to PyPI"
+depends = ["build", "test"]
+run = "uv build && uv publish --dry-run"
+
+[tasks.sync-config-schema]
+description = "Sync shared config assets from vendor/tjbot-config"
+run = "python3 scripts/sync_config_schema.py"
+
 [tasks.test]
 description = "Run core unit tests"
 depends = ["build"]
 run = "uv run pytest -n auto --dist=loadfile tests/core"
 
+[tasks.test-camera]
+description = "Run live camera tests"
+run = "uv run python tests/live/test_camera.py"
+
 [tasks.test-coverage]
 description = "Run tests with coverage"
 depends = ["build"]
 run = "uv run pytest tests/core --cov=src/tjbot --cov-report=term-missing"
-
-[tasks.test-camera]
-description = "Run live camera tests"
-run = "uv run python tests/live/test_camera.py"
 
 [tasks.test-led]
 description = "Run live LED tests"
@@ -77,9 +87,9 @@ run = "uv run python tests/live/test_tts.py"
 description = "Run live vision tests"
 run = "uv run python tests/live/test_vision.py"
 
-[tasks.docs]
-description = "Generate versioned API docs in tjbot-ce.github.io"
-run = "uv run python scripts/generate_docs.py"
+[tasks.typecheck]
+description = "Run static type checking"
+run = "uv run mypy src"
 
 [tasks.update-deps]
 description = "Check dependency updates"
