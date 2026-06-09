@@ -55,6 +55,7 @@ dev = [
     "InquirerPy>=0.3.4",
     "pytest-cov>=7.1.0",
     "pymarkdownlnt>=0.9.37",
+    "scipy-stubs>=1.17.1.5",
 ]
 
 [tool.uv]
