@@ -1,0 +1,138 @@
+# Copyright 2026-present TJBot Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Iterable, Optional, TypedDict
+
+from ..config.config_types import ListenConfig, STTEngineConfig
+from ..utils.errors import TJBotError
+
+
+class STTRequestOptions(TypedDict, total=False):
+    on_partial_result: Optional[Callable[[str], None]]
+    on_final_result: Optional[Callable[[str], None]]
+    abort_signal: Any
+    stop_stream: Optional[Callable[[], None]]
+
+
+class STTEngine(ABC):
+    """Abstract base class for speech-to-text engines."""
+
+    def __init__(self, config: Optional[STTEngineConfig] = None):
+        self.config = config or {}
+
+    @abstractmethod
+    def initialize(self, microphone_rate: int, microphone_channels: int) -> None:
+        pass
+
+    def cleanup(self) -> None:
+        pass
+
+    @abstractmethod
+    def transcribe(
+        self, audio_stream: Iterable[bytes], options: Optional[STTRequestOptions] = None
+    ) -> str:
+        pass
+
+    def ensure_stream(self, stream: Optional[Iterable[bytes]]) -> Iterable[bytes]:
+        if stream is None:
+            raise TJBotError("Microphone stream is not available")
+        return stream
+
+    def _is_abort_signal_set(self, abort_signal: Any) -> bool:
+        if abort_signal is None:
+            return False
+
+        is_set_fn = getattr(abort_signal, "is_set", None)
+        if callable(is_set_fn):
+            try:
+                return bool(is_set_fn())
+            except Exception:
+                return False
+
+        aborted = getattr(abort_signal, "aborted", None)
+        if isinstance(aborted, bool):
+            return aborted
+
+        return False
+
+    def is_aborted(self, options: Optional[STTRequestOptions] = None) -> bool:
+        options = options or {}
+        abort_signal = options.get("abort_signal")
+        return self._is_abort_signal_set(abort_signal)
+
+    def raise_if_aborted(self, options: Optional[STTRequestOptions] = None) -> None:
+        if self.is_aborted(options):
+            raise TJBotError("STT transcription was aborted.", code="stt.aborted")
+
+
+def create_stt_engine(listen_config: ListenConfig) -> STTEngine:
+    backend_config = listen_config.backend
+    backend_type = backend_config.type if backend_config else "local"
+
+    try:
+        if backend_type == "none":
+
+            class NoneSTTEngine(STTEngine):
+                def initialize(
+                    self, microphone_rate: int, microphone_channels: int
+                ) -> None:
+                    _ = microphone_rate
+                    _ = microphone_channels
+
+                def transcribe(
+                    self,
+                    audio_stream: Iterable[bytes],
+                    options: Optional[STTRequestOptions] = None,
+                ) -> str:
+                    _ = audio_stream
+                    _ = options
+                    raise TJBotError(
+                        "STT is disabled. Configure a speech-to-text backend (local, ibm-watson-stt, google-cloud-stt, or azure-stt) to use speech recognition."
+                    )
+
+            return NoneSTTEngine({})
+
+        if backend_type == "local":
+            from .backends.sherpa_onnx_stt import SherpaONNXSTTEngine
+
+            local_cfg = backend_config.local if backend_config else None
+            return SherpaONNXSTTEngine(local_cfg)
+
+        if backend_type == "ibm-watson-stt":
+            from .backends.watson_stt import IBMWatsonSTTEngine
+
+            watson_cfg = backend_config.ibm_watson_stt if backend_config else None
+            return IBMWatsonSTTEngine(watson_cfg)
+
+        if backend_type == "google-cloud-stt":
+            from .backends.google_cloud_stt import GoogleCloudSTTEngine
+
+            google_cfg = backend_config.google_cloud_stt if backend_config else None
+            return GoogleCloudSTTEngine(google_cfg)
+
+        if backend_type == "azure-stt":
+            from .backends.azure_stt import AzureSTTEngine
+
+            azure_cfg = backend_config.azure_stt if backend_config else None
+            return AzureSTTEngine(azure_cfg)
+
+        raise TJBotError(f"Unknown STT backend type: {backend_type}")
+    except TJBotError:
+        raise
+    except Exception as error:
+        raise TJBotError(
+            f'Failed to load STT backend "{backend_type}". Ensure dependencies are installed.',
+            cause=error,
+        )

@@ -1,18 +1,31 @@
+# Copyright 2026-present TJBot Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from enum import StrEnum
 
+
 class Capability(StrEnum):
-    LISTEN = 'listen'
-    LOOK = 'look'
-    SHINE = 'shine'
-    SPEAK = 'speak'
-    WAVE = 'wave'
+    LISTEN = "listen"
+    SEE = "see"
+    SHINE = "shine"
+    SPEAK = "speak"
+    WAVE = "wave"
+
 
 class Hardware(StrEnum):
-    CAMERA = 'camera'
-    LED_COMMON_ANODE = 'common_anode_led'
-    LED_NEOPIXEL = 'neopixel_led'
-    MICROPHONE = 'microphone'
-    SERVO = 'servo'
-    SPEAKER = 'speaker'
-
-
+    CAMERA = "camera"
+    LED = "led"
+    MICROPHONE = "microphone"
+    SERVO = "servo"
+    SPEAKER = "speaker"

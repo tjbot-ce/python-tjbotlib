@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+
+# Copyright 2026-present TJBot Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Interactive TJBot Servo Hardware Test
 
@@ -9,7 +24,7 @@ import sys
 import os
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 
@@ -37,20 +52,23 @@ def run_test():
     gpio_input = prompt_user("Enter GPIO pin for servo (default: 18): ")
     servo_pin = 18 if gpio_input.strip() == "" else int(gpio_input.strip())
 
-    tjbot = TJBot({
-        "log": {"level": "info"},
-        "wave": {
-            "servoPin": servo_pin,
-        },
-        "hardware": {
-            "servo": True
+    tjbot = TJBot(
+        {
+            "log": {"level": "info"},
+            "wave": {
+                "servoPin": servo_pin,
+            },
+            "hardware": {"servo": True},
         }
-    })
+    )
 
     print(format_section("Testing TJBot Wave API"))
 
     try:
-        print(f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servoPin}\n")
+        assert tjbot.config is not None
+        print(
+            f"✓ TJBot initialized with servo hardware on GPIO{tjbot.config.wave.servo_pin}\n"
+        )
 
         # Test 1: Arm back
         print("Test 1: Moving arm to BACK position")
@@ -89,4 +107,3 @@ def run_test():
 
 if __name__ == "__main__":
     run_test()
-

@@ -1,0 +1,100 @@
+[tasks.build]
+description = "Build prep for python-tjbotlib (sync shared config assets)"
+depends = ["sync-config-schema"]
+run = "echo 'Build prep complete: synced config schema/assets'"
+
+[tasks.docs]
+description = "Generate versioned API docs in tjbot-ce.github.io"
+run = "uv run python scripts/generate_docs.py"
+
+[tasks.format]
+description = "Format code"
+run = "uv run ruff format ."
+
+[tasks.format-check]
+description = "Check code formatting"
+run = "uv run ruff format . --check"
+
+[tasks.lint]
+description = "Run lint checks"
+run = "uv run ruff check ."
+
+[tasks.lint-fix]
+description = "Run lint auto-fixes"
+run = "uv run ruff check . --fix"
+
+[tasks.markdownlint]
+description = "Lint markdown files (optional markdownlint-cli)"
+run = "uv run pymarkdownlnt scan '**/*.md' --exclude .venv --exclude vendor"
+
+[tasks.markdownlint-fix]
+description = "Auto-fix markdown files (optional markdownlint-cli)"
+run = "uv run pymarkdownlnt fix '**/*.md' --exclude .venv --exclude vendor"
+
+[tasks.publish]
+description = "Publish python-tjbotlib to PyPI"
+depends = ["build", "test"]
+run = "uv build && uv publish"
+
+[tasks.publish-dry-run]
+description = "Dry-run publish python-tjbotlib to PyPI"
+depends = ["build", "test"]
+run = "uv build && uv publish --dry-run"
+
+[tasks.sync-config-schema]
+description = "Sync shared config assets from vendor/tjbot-config"
+run = "python3 scripts/sync_config_schema.py"
+
+[tasks.test]
+description = "Run core unit tests"
+depends = ["build"]
+run = "uv run pytest -n auto --dist=loadfile tests/core"
+
+[tasks.test-camera]
+description = "Run live camera tests"
+run = "uv run python tests/live/test_camera.py"
+
+[tasks.test-coverage]
+description = "Run tests with coverage"
+depends = ["build"]
+run = "uv run pytest tests/core --cov=src/tjbot --cov-report=term-missing"
+
+[tasks.test-led]
+description = "Run live LED tests"
+run = "uv run python tests/live/test_led.py"
+
+[tasks.test-microphone]
+description = "Run live microphone tests"
+run = "uv run python tests/live/test_microphone.py"
+
+[tasks.test-servo]
+description = "Run live servo tests"
+run = "uv run python tests/live/test_servo.py"
+
+[tasks.test-speaker]
+description = "Run live speaker tests"
+run = "uv run python tests/live/test_speaker.py"
+
+[tasks.test-stt]
+description = "Run live STT tests"
+run = "uv run python tests/live/test_stt.py"
+
+[tasks.test-tts]
+description = "Run live TTS tests"
+run = "uv run python tests/live/test_tts.py"
+
+[tasks.test-vision]
+description = "Run live vision tests"
+run = "uv run python tests/live/test_vision.py"
+
+[tasks.typecheck]
+description = "Run static type checking"
+run = "uv run mypy src"
+
+[tasks.update-deps]
+description = "Check dependency updates"
+run = "uv lock --upgrade --dry-run"
+
+[tasks.upgrade-deps]
+description = "Upgrade dependencies and lockfile"
+run = "uv lock --upgrade"

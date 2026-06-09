@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+
+# Copyright 2026-present TJBot Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Interactive TJBot LED Hardware Test
 
@@ -10,13 +25,19 @@ import sys
 import os
 
 # Add parent directory to path for script execution
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from tjbot import TJBot
 from tjbot.rpi_drivers.rpi_detect import RPiDetect
 
 try:
-    from .utils import format_title, format_section, confirm, prompt_input, select_option
+    from .utils import (
+        format_title,
+        format_section,
+        confirm,
+        prompt_input,
+        select_option,
+    )
 except ImportError:
     from utils import format_title, format_section, confirm, prompt_input, select_option
 
@@ -32,16 +53,12 @@ def run_test():
             {"name": "NeoPixel (WS2812B)", "value": "neopixel"},
             {"name": "Common Anode RGB LED", "value": "common-anode"},
         ],
-        default="neopixel"
+        default="neopixel",
     )
 
     is_neopixel = led_type == "neopixel"
 
-    config = {
-        "log": {"level": "info"},
-        "hardware": {},
-        "shine": {}
-    }
+    config = {"log": {"level": "info"}, "hardware": {}, "shine": {}}
 
     if is_neopixel:
         # NeoPixel setup - configuration varies by Pi model
@@ -49,15 +66,14 @@ def run_test():
             # RPi5 uses SPI interface
             spi_interface = prompt_input(
                 "Enter SPI interface for NeoPixel LED (default: /dev/spidev0.0)",
-                "/dev/spidev0.0"
+                "/dev/spidev0.0",
             )
             config["shine"]["neopixel"] = {"spiInterface": spi_interface}
             print(f"✓ NeoPixel SPI interface: {spi_interface}\n")
         else:
             # RPi3/4 use GPIO pin
             gpio_pin = prompt_input(
-                "Enter GPIO pin for NeoPixel LED (default: 21)",
-                "21"
+                "Enter GPIO pin for NeoPixel LED (default: 21)", "21"
             )
             config["shine"]["neopixel"] = {"gpioPin": int(gpio_pin)}
             print(f"✓ NeoPixel GPIO pin: {gpio_pin}\n")
@@ -74,7 +90,7 @@ def run_test():
         config["shine"]["commonanode"] = {
             "redPin": int(red_pin),
             "greenPin": int(green_pin),
-            "bluePin": int(blue_pin)
+            "bluePin": int(blue_pin),
         }
         print("✓ Common Anode LED config ready\n")
 
