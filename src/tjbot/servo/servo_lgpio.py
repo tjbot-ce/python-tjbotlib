@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import lgpio
-except ImportError:
+except Exception:
     lgpio = None
 
 
