@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tjbot import TJBot
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .tjbot import TJBot
+
+
+def __getattr__(name: str):
+    if name == "TJBot":
+        from .tjbot import TJBot
+
+        return TJBot
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["TJBot"]
