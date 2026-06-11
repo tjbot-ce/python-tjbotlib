@@ -39,7 +39,7 @@ sudo apt-get install libgpiod-dev liblgpiod-dev rpicam-apps-lite
 Install the library using `pip`:
 
 ```bash
-pip install tjbot
+pip install tjbot-ce
 ```
 
 Or, using `uv`:

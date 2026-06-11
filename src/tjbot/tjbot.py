@@ -66,7 +66,7 @@ class TJBot:
     """
 
     try:
-        _pkg_version = version("python-tjbotlib")
+        _pkg_version = version("tjbot-ce")
     except PackageNotFoundError:
         _pkg_version = "0.0.0"
     VERSION = f"v{_pkg_version}"
