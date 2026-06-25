@@ -345,7 +345,10 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
         self.tts_controller.speak(message)
 
     def listen_for_transcript(
-        self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None
+        self,
+        on_partial: Optional[Any] = None,
+        on_final: Optional[Any] = None,
+        abort_signal: Optional[Any] = None,
     ) -> str:
         if self.stt_controller is None:
             raise TJBotError(
@@ -355,6 +358,7 @@ class RPiBaseHardwareDriver(RPiHardwareDriver):
         return self.stt_controller.transcribe(
             on_partial_result=on_partial,
             on_final_result=on_final,
+            abort_signal=abort_signal,
         ).strip()
 
     def start_mic(self) -> None:

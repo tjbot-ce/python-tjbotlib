@@ -584,9 +584,13 @@ class TJBot:
         self.rpi_driver.play_audio(sound_file)
 
     # --- LISTEN ---
-    def listen(self) -> str:
+    def listen(self, timeout: Optional[float] = None) -> str:
         """
         Listen for speech.
+
+        Args:
+            timeout: Optional timeout in seconds. If speech is not detected within this
+                time, a TJBotError is raised.
 
         Returns:
             The final transcript from the microphone.
@@ -617,7 +621,17 @@ class TJBot:
                 f"to receive partial/final transcript callbacks."
             )
 
-        result = driver.listen_for_transcript()
+        if timeout is not None:
+            abort_event = threading.Event()
+            timer = threading.Timer(timeout, abort_event.set)
+            timer.start()
+            try:
+                result = driver.listen_for_transcript(abort_signal=abort_event)
+            finally:
+                timer.cancel()
+        else:
+            result = driver.listen_for_transcript()
+
         logger.info(f'Heard: "{result}"')
         return result
 
@@ -625,7 +639,17 @@ class TJBot:
         self,
         on_partial_result: Optional[Callable[[str], None]] = None,
         on_final_result: Optional[Callable[[str], None]] = None,
+        timeout: Optional[float] = None,
     ) -> None:
+        """
+        Listen for speech asynchronously with optional callbacks for partial/final results.
+
+        Args:
+            on_partial_result: Callback invoked with each partial transcript.
+            on_final_result: Callback invoked with the final transcript.
+            timeout: Optional timeout in seconds. If speech is not detected within this
+                time, a TJBotError is raised.
+        """
         driver = self._assert_capability(Capability.LISTEN)
 
         config = self.config
@@ -642,40 +666,51 @@ class TJBot:
                 "listen_async() requires at least one callback. Use listen() for synchronous final transcript mode."
             )
 
-        if mode == "streaming":
-            loop = asyncio.get_running_loop()
+        abort_event = threading.Event() if timeout is not None else None
+        timer = threading.Timer(timeout, abort_event.set) if timeout is not None and abort_event is not None else None
+        if timer is not None:
+            timer.start()
 
-            def _dispatch_callback(
-                callback: Optional[Callable[[str], None]], text: str
-            ) -> None:
-                if callback is None:
-                    return
+        try:
+            if mode == "streaming":
+                loop = asyncio.get_running_loop()
 
-                if asyncio.iscoroutinefunction(callback):
-                    loop.call_soon_threadsafe(
-                        lambda: asyncio.create_task(callback(text))
-                    )
-                else:
-                    loop.call_soon_threadsafe(callback, text)
+                def _dispatch_callback(
+                    callback: Optional[Callable[[str], None]], text: str
+                ) -> None:
+                    if callback is None:
+                        return
 
-            def _partial_cb(text: str) -> None:
-                _dispatch_callback(on_partial_result, text)
+                    if asyncio.iscoroutinefunction(callback):
+                        loop.call_soon_threadsafe(
+                            lambda: asyncio.create_task(callback(text))
+                        )
+                    else:
+                        loop.call_soon_threadsafe(callback, text)
 
-            def _final_cb(text: str) -> None:
-                _dispatch_callback(on_final_result, text)
+                def _partial_cb(text: str) -> None:
+                    _dispatch_callback(on_partial_result, text)
 
-            await asyncio.to_thread(
-                driver.listen_for_transcript,
-                on_partial=_partial_cb,
-                on_final=_final_cb,
+                def _final_cb(text: str) -> None:
+                    _dispatch_callback(on_final_result, text)
+
+                await asyncio.to_thread(
+                    driver.listen_for_transcript,
+                    on_partial=_partial_cb,
+                    on_final=_final_cb,
+                    abort_signal=abort_event,
+                )
+                return
+
+            result = await asyncio.to_thread(
+                driver.listen_for_transcript, abort_signal=abort_event
             )
-            return
-
-        result = await asyncio.to_thread(driver.listen_for_transcript)
-        logger.info(f'Heard: "{result}"')
-        if on_final_result is not None:
-            on_final_result(result)
-        return
+            logger.info(f'Heard: "{result}"')
+            if on_final_result is not None:
+                on_final_result(result)
+        finally:
+            if timer is not None:
+                timer.cancel()
 
     # --- LOOK ---
     def look(self, file_path: Optional[str] = None) -> str:
