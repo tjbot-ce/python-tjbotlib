@@ -76,7 +76,7 @@ class _MicrophoneInputStream:
                 break
 
             # TODO: we need to introduce a 'silly' level for stuff like this
-            #_logger.debug("microphone received %d bytes", len(chunk))
+            # _logger.debug("microphone received %d bytes", len(chunk))
             yield chunk
 
     def read(self, size: int) -> bytes:

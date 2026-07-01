@@ -667,7 +667,11 @@ class TJBot:
             )
 
         abort_event = threading.Event() if timeout is not None else None
-        timer = threading.Timer(timeout, abort_event.set) if timeout is not None and abort_event is not None else None
+        timer = (
+            threading.Timer(timeout, abort_event.set)
+            if timeout is not None and abort_event is not None
+            else None
+        )
         if timer is not None:
             timer.start()
 
