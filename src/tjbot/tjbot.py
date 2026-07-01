@@ -16,6 +16,7 @@ import asyncio
 import atexit
 import os
 import random
+import re
 import signal
 import threading
 from importlib.metadata import version, PackageNotFoundError
@@ -574,8 +575,14 @@ class TJBot:
     # --- SPEAK ---
     def speak(self, message: str):
         driver = self._assert_capability(Capability.SPEAK)
+
         logger.info(f"TJBot speaking: '{message}'")
-        driver.speak(message)
+
+        # silently change "tjbot" to "t j bot" so that TTS engines pronounce it correctly
+        tjbot_pattern = re.compile(r"\btjbot\b", re.IGNORECASE)
+        normalized_message = tjbot_pattern.sub("t j bot", message)
+
+        driver.speak(normalized_message)
 
     def play(self, sound_file: str):
         """Play an audio file.

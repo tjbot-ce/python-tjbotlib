@@ -414,12 +414,12 @@ def test_speak_throws_when_capability_not_available(tjbot_with_mock_driver):
         bot.speak("hello")
 
 
-def test_speak_delegates_to_driver(tjbot_with_mock_driver):
+def test_speak_replaces_tjbot_slug_before_delegate(tjbot_with_mock_driver):
     bot, driver = tjbot_with_mock_driver
 
-    bot.speak("hello")
+    bot.speak("hello tjbot and TJBOT")
 
-    driver.speak.assert_called_once_with("hello")
+    driver.speak.assert_called_once_with("hello t j bot and t j bot")
 
 
 def test_play_does_not_check_for_speak_capability_before_execution(
