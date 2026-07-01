@@ -24,6 +24,7 @@ from ..stt_utils import (
 from ...config.config_types import STTBackendGoogleCloudConfig
 from ...utils.errors import TJBotError
 from ...utils.credentials import load_google_cloud_credentials
+from ...utils.logging import log_silly
 
 try:
     from google.cloud.speech_v2 import SpeechClient
@@ -243,7 +244,8 @@ class GoogleCloudSTTEngine(STTEngine):
 
         recognizer_path = f"projects/{self.project_id}/locations/{region}/recognizers/_"
 
-        logger.debug(
+        log_silly(
+            logger,
             "Transcribing with Google Cloud STT v2 (model=%s, language=%s, recognizer=%s)",
             model,
             language_code,

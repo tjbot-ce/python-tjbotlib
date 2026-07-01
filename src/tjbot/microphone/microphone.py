@@ -22,7 +22,7 @@ from typing import Iterator, Optional
 
 from ..utils.errors import TJBotError
 from ..utils import is_command_available
-from ..utils.logging import get_logger
+from ..utils.logging import get_logger, log_silly
 
 _logger = get_logger(__name__)
 
@@ -75,8 +75,7 @@ class _MicrophoneInputStream:
             if not chunk:
                 break
 
-            # TODO: we need to introduce a 'silly' level for stuff like this
-            # _logger.debug("microphone received %d bytes", len(chunk))
+            log_silly(_logger, "microphone received %d bytes", len(chunk))
             yield chunk
 
     def read(self, size: int) -> bytes:

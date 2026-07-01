@@ -36,7 +36,7 @@ from .utils import (
     sleep_sync as tjbot_sleep,
     set_log_level,
 )
-from .utils.logging import TJBotLogLevel
+from .utils.logging import TJBotLogLevel, log_silly
 from .servo import ServoPosition
 from .rpi_drivers import (
     RPiHardwareDriver,
@@ -388,6 +388,7 @@ class TJBot:
                 self.rpi_driver.setup_speaker(config.speak)
 
     def _assert_capability(self, capability: str) -> RPiHardwareDriver:
+        logger.debug("Asserting capability: %s", capability)
         if self.config is None:
             raise TJBotError(
                 "TJBot has not been initialized. Call initialize() before using TJBot methods."
@@ -403,6 +404,9 @@ class TJBot:
                     f"TJBot is not configured to {capability}. Required hardware: {required_hardware}."
                 )
             raise TJBotError(f"TJBot is not configured to {capability}.")
+
+        capabilities = ", ".join(sorted(self.rpi_driver.get_hardware()))
+        log_silly(logger, "TJBot capabilities: %s", capabilities)
         return self.rpi_driver
 
     def set_log_level(self, level: TJBotLogLevel) -> None:
@@ -502,6 +506,7 @@ class TJBot:
 
         # Full ramp: up + down
         full_ramp = ramp_colors + ramp_colors[::-1]
+        log_silly(logger, "color ramp for pulse: %s", ", ".join(ramp_colors))
 
         # Easing logic to create delays
         # Node creates 'ease' array of times, then diffs them to get delays.
@@ -525,6 +530,7 @@ class TJBot:
             # Render
             if c.startswith("#"):
                 c = c[1:]
+            log_silly(logger, "pulse step %d: setting color to %s", i, c)
             self.rpi_driver.render_led(c)  # type: ignore[union-attr]
             prev_time = target_time
 

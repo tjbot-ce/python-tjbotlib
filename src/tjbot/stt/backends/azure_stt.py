@@ -23,6 +23,7 @@ from ..stt_utils import (
 from ...config.config_types import STTBackendAzureConfig
 from ...utils.errors import TJBotError
 from ...utils.credentials import load_azure_credentials
+from ...utils.logging import log_silly
 
 try:
     import azure.cognitiveservices.speech as speechsdk  # type: ignore[import-untyped]
@@ -152,10 +153,18 @@ class AzureSTTEngine(STTEngine):
                     ):
                         break
                     push_stream.write(chunk)
+                    log_silly(
+                        logger,
+                        "piped %d bytes from microphone to Azure STT push stream",
+                        len(chunk),
+                    )
             except Exception as error:  # pragma: no cover - defensive handling
                 stream_error.append(error)
             finally:
                 push_stream.close()
+                log_silly(
+                    logger, "microphone stream ended, closed Azure STT push stream"
+                )
 
         push_thread = threading.Thread(target=processing_func, daemon=True)
         push_thread.start()
@@ -222,8 +231,16 @@ class AzureSTTEngine(STTEngine):
                     if self._is_abort_signal_set(abort_signal):
                         break
                     push_stream.write(chunk)
+                    log_silly(
+                        logger,
+                        "piped %d bytes from microphone to Azure STT push stream",
+                        len(chunk),
+                    )
             finally:
                 push_stream.close()
+                log_silly(
+                    logger, "microphone stream ended, closed Azure STT push stream"
+                )
 
         # Start pushing audio in background thread
         push_thread = threading.Thread(target=processing_func)
@@ -262,6 +279,7 @@ class AzureSTTEngine(STTEngine):
 
         # Start continuous recognition
         recognizer.start_continuous_recognition()
+        log_silly(logger, "Azure STT continuous recognition started")
 
         # Wait for done (which happens when stream closes/stops)
         while not done_event.wait(0.1):

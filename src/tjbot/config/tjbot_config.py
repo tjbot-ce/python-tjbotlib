@@ -14,6 +14,7 @@
 
 from typing import Any, Dict, List, Optional, TypeGuard
 from pathlib import Path
+import json
 
 try:
     import tomllib
@@ -26,7 +27,7 @@ import yaml
 from ..utils.errors import TJBotError
 from ..utils import ModelRegistry
 from ..utils.model_registry import ModelMetadata
-from ..utils.logging import get_logger
+from ..utils.logging import get_logger, log_silly
 from .config_types import (
     TJBotConfigSchema,
     LogConfig,
@@ -119,6 +120,11 @@ class TJBotConfig:
         self._validate_vision_backend_config()
 
         _logger.debug("TJBot configuration loaded successfully")
+        log_silly(
+            _logger,
+            "TJBot configuration:\n%s",
+            json.dumps(merged_config, indent=2, default=str),
+        )
 
     @property
     def config(self) -> TJBotConfigSchema:
