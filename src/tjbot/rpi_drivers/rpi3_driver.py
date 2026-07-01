@@ -144,10 +144,17 @@ class RPi3Driver(RPiBaseHardwareDriver):
         self._user_has_been_warned[ai_type] = True
 
     def listen_for_transcript(
-        self, on_partial: Any = None, on_final: Any = None
+        self,
+        on_partial: Any = None,
+        on_final: Any = None,
+        abort_signal: Any = None,
     ) -> str:
         self._warn_if_using_local_ai("stt")
-        return super().listen_for_transcript(on_partial=on_partial, on_final=on_final)
+        return super().listen_for_transcript(
+            on_partial=on_partial,
+            on_final=on_final,
+            abort_signal=abort_signal,
+        )
 
     def speak(self, message: str) -> None:
         self._warn_if_using_local_ai("tts")

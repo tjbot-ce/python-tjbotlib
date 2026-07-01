@@ -19,6 +19,7 @@ import random
 import re
 import signal
 import threading
+from functools import partial
 from importlib.metadata import version, PackageNotFoundError
 from typing import Optional, Dict, Any, List, Union, Callable, cast
 
@@ -712,15 +713,17 @@ class TJBot:
                     _dispatch_callback(on_final_result, text)
 
                 await asyncio.to_thread(
-                    driver.listen_for_transcript,
-                    on_partial=_partial_cb,
-                    on_final=_final_cb,
-                    abort_signal=abort_event,
+                    partial(
+                        driver.listen_for_transcript,
+                        on_partial=_partial_cb,
+                        on_final=_final_cb,
+                        abort_signal=abort_event,
+                    )
                 )
                 return
 
             result = await asyncio.to_thread(
-                driver.listen_for_transcript, abort_signal=abort_event
+                partial(driver.listen_for_transcript, abort_signal=abort_event)
             )
             logger.info(f'Heard: "{result}"')
             if on_final_result is not None:

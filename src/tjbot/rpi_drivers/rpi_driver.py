@@ -155,7 +155,10 @@ class RPiHardwareDriver(ABC):
 
     @abstractmethod
     def listen_for_transcript(
-        self, on_partial: Optional[Any] = None, on_final: Optional[Any] = None
+        self,
+        on_partial: Optional[Any] = None,
+        on_final: Optional[Any] = None,
+        abort_signal: Optional[Any] = None,
     ) -> str:
         pass
 

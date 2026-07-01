@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `timeout` parameter to `listen()`, allowing callers to bound how long TJBot will listen for speech.
 - Support for the `silly` logging level, to match parity with `node-tjbotlib`.
 
+### Changed
+
+- `TJBot.speak()` internally replaces "tjbot" with "t j bot" so TTS backends pronounce it correctly.
+
 ## [3.0.0] - 2026-06-11
 
 ### Added

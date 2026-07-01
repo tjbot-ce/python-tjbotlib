@@ -89,7 +89,7 @@ run = "uv run python tests/live/test_vision.py"
 
 [tasks.typecheck]
 description = "Run static type checking"
-run = "uv run mypy src"
+run = "uv run mypy --check-untyped-defs src"
 
 [tasks.update-deps]
 description = "Check dependency updates"

@@ -14,7 +14,7 @@
 
 import logging
 from enum import StrEnum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 
 class LogEmoji(StrEnum):
@@ -105,7 +105,7 @@ def log_silly(
     logger: logging.Logger,
     message: str,
     *args: object,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> None:
     """Emit a log record at the custom SILLY level."""
     logger.log(SILLY_LOG_LEVEL, message, *args, **kwargs)
