@@ -16,8 +16,10 @@ import asyncio
 import atexit
 import os
 import random
+import re
 import signal
 import threading
+from functools import partial
 from importlib.metadata import version, PackageNotFoundError
 from typing import Optional, Dict, Any, List, Union, Callable, cast
 
@@ -36,7 +38,7 @@ from .utils import (
     sleep_sync as tjbot_sleep,
     set_log_level,
 )
-from .utils.logging import TJBotLogLevel
+from .utils.logging import TJBotLogLevel, log_silly
 from .servo import ServoPosition
 from .rpi_drivers import (
     RPiHardwareDriver,
@@ -388,6 +390,7 @@ class TJBot:
                 self.rpi_driver.setup_speaker(config.speak)
 
     def _assert_capability(self, capability: str) -> RPiHardwareDriver:
+        logger.debug("Asserting capability: %s", capability)
         if self.config is None:
             raise TJBotError(
                 "TJBot has not been initialized. Call initialize() before using TJBot methods."
@@ -403,6 +406,9 @@ class TJBot:
                     f"TJBot is not configured to {capability}. Required hardware: {required_hardware}."
                 )
             raise TJBotError(f"TJBot is not configured to {capability}.")
+
+        capabilities = ", ".join(sorted(self.rpi_driver.get_hardware()))
+        log_silly(logger, "TJBot capabilities: %s", capabilities)
         return self.rpi_driver
 
     def set_log_level(self, level: TJBotLogLevel) -> None:
@@ -502,6 +508,7 @@ class TJBot:
 
         # Full ramp: up + down
         full_ramp = ramp_colors + ramp_colors[::-1]
+        log_silly(logger, "color ramp for pulse: %s", ", ".join(ramp_colors))
 
         # Easing logic to create delays
         # Node creates 'ease' array of times, then diffs them to get delays.
@@ -525,6 +532,7 @@ class TJBot:
             # Render
             if c.startswith("#"):
                 c = c[1:]
+            log_silly(logger, "pulse step %d: setting color to %s", i, c)
             self.rpi_driver.render_led(c)  # type: ignore[union-attr]
             prev_time = target_time
 
@@ -568,8 +576,14 @@ class TJBot:
     # --- SPEAK ---
     def speak(self, message: str):
         driver = self._assert_capability(Capability.SPEAK)
+
         logger.info(f"TJBot speaking: '{message}'")
-        driver.speak(message)
+
+        # silently change "tjbot" to "t j bot" so that TTS engines pronounce it correctly
+        tjbot_pattern = re.compile(r"\btjbot\b", re.IGNORECASE)
+        normalized_message = tjbot_pattern.sub("t j bot", message)
+
+        driver.speak(normalized_message)
 
     def play(self, sound_file: str):
         """Play an audio file.
@@ -584,9 +598,13 @@ class TJBot:
         self.rpi_driver.play_audio(sound_file)
 
     # --- LISTEN ---
-    def listen(self) -> str:
+    def listen(self, timeout: Optional[float] = None) -> str:
         """
         Listen for speech.
+
+        Args:
+            timeout: Optional timeout in seconds. If speech is not detected within this
+                time, a TJBotError is raised.
 
         Returns:
             The final transcript from the microphone.
@@ -617,7 +635,17 @@ class TJBot:
                 f"to receive partial/final transcript callbacks."
             )
 
-        result = driver.listen_for_transcript()
+        if timeout is not None:
+            abort_event = threading.Event()
+            timer = threading.Timer(timeout, abort_event.set)
+            timer.start()
+            try:
+                result = driver.listen_for_transcript(abort_signal=abort_event)
+            finally:
+                timer.cancel()
+        else:
+            result = driver.listen_for_transcript()
+
         logger.info(f'Heard: "{result}"')
         return result
 
@@ -625,7 +653,17 @@ class TJBot:
         self,
         on_partial_result: Optional[Callable[[str], None]] = None,
         on_final_result: Optional[Callable[[str], None]] = None,
+        timeout: Optional[float] = None,
     ) -> None:
+        """
+        Listen for speech asynchronously with optional callbacks for partial/final results.
+
+        Args:
+            on_partial_result: Callback invoked with each partial transcript.
+            on_final_result: Callback invoked with the final transcript.
+            timeout: Optional timeout in seconds. If speech is not detected within this
+                time, a TJBotError is raised.
+        """
         driver = self._assert_capability(Capability.LISTEN)
 
         config = self.config
@@ -642,40 +680,57 @@ class TJBot:
                 "listen_async() requires at least one callback. Use listen() for synchronous final transcript mode."
             )
 
-        if mode == "streaming":
-            loop = asyncio.get_running_loop()
+        abort_event = threading.Event() if timeout is not None else None
+        timer = (
+            threading.Timer(timeout, abort_event.set)
+            if timeout is not None and abort_event is not None
+            else None
+        )
+        if timer is not None:
+            timer.start()
 
-            def _dispatch_callback(
-                callback: Optional[Callable[[str], None]], text: str
-            ) -> None:
-                if callback is None:
-                    return
+        try:
+            if mode == "streaming":
+                loop = asyncio.get_running_loop()
 
-                if asyncio.iscoroutinefunction(callback):
-                    loop.call_soon_threadsafe(
-                        lambda: asyncio.create_task(callback(text))
+                def _dispatch_callback(
+                    callback: Optional[Callable[[str], None]], text: str
+                ) -> None:
+                    if callback is None:
+                        return
+
+                    if asyncio.iscoroutinefunction(callback):
+                        loop.call_soon_threadsafe(
+                            lambda: asyncio.create_task(callback(text))
+                        )
+                    else:
+                        loop.call_soon_threadsafe(callback, text)
+
+                def _partial_cb(text: str) -> None:
+                    _dispatch_callback(on_partial_result, text)
+
+                def _final_cb(text: str) -> None:
+                    _dispatch_callback(on_final_result, text)
+
+                await asyncio.to_thread(
+                    partial(
+                        driver.listen_for_transcript,
+                        on_partial=_partial_cb,
+                        on_final=_final_cb,
+                        abort_signal=abort_event,
                     )
-                else:
-                    loop.call_soon_threadsafe(callback, text)
+                )
+                return
 
-            def _partial_cb(text: str) -> None:
-                _dispatch_callback(on_partial_result, text)
-
-            def _final_cb(text: str) -> None:
-                _dispatch_callback(on_final_result, text)
-
-            await asyncio.to_thread(
-                driver.listen_for_transcript,
-                on_partial=_partial_cb,
-                on_final=_final_cb,
+            result = await asyncio.to_thread(
+                partial(driver.listen_for_transcript, abort_signal=abort_event)
             )
-            return
-
-        result = await asyncio.to_thread(driver.listen_for_transcript)
-        logger.info(f'Heard: "{result}"')
-        if on_final_result is not None:
-            on_final_result(result)
-        return
+            logger.info(f'Heard: "{result}"')
+            if on_final_result is not None:
+                on_final_result(result)
+        finally:
+            if timer is not None:
+                timer.cancel()
 
     # --- LOOK ---
     def look(self, file_path: Optional[str] = None) -> str:

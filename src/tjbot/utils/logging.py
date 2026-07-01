@@ -14,7 +14,7 @@
 
 import logging
 from enum import StrEnum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 
 class LogEmoji(StrEnum):
@@ -36,6 +36,8 @@ class LogEmoji(StrEnum):
 
 TJBotLogLevel = Literal["error", "warning", "warn", "info", "verbose", "debug", "silly"]
 
+SILLY_LOG_LEVEL = 5
+
 _PACKAGE_LOGGER = "tjbot"
 _configured = False
 
@@ -46,7 +48,7 @@ _LOG_LEVEL_MAP: dict[str, int] = {
     "info": logging.INFO,
     "verbose": logging.DEBUG,
     "debug": logging.DEBUG,
-    "silly": logging.DEBUG,
+    "silly": SILLY_LOG_LEVEL,
 }
 
 _LOGGER_NAME_EMOJI_RULES: tuple[tuple[str, LogEmoji], ...] = (
@@ -79,6 +81,13 @@ def _emoji_for_logger_name(logger_name: str) -> LogEmoji:
     return LogEmoji.GENERAL
 
 
+def _install_silly_log_level() -> None:
+    """Register a custom SILLY level below DEBUG for very noisy traces."""
+    logging.addLevelName(SILLY_LOG_LEVEL, "SILLY")
+    if not hasattr(logging, "SILLY"):
+        setattr(logging, "SILLY", SILLY_LOG_LEVEL)
+
+
 class TJBotLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         emoji = _emoji_for_logger_name(record.name)
@@ -90,6 +99,16 @@ class TJBotLogFormatter(logging.Formatter):
             base = f"{base}\n{self.formatException(record.exc_info)}"
 
         return base
+
+
+def log_silly(
+    logger: logging.Logger,
+    message: str,
+    *args: object,
+    **kwargs: Any,
+) -> None:
+    """Emit a log record at the custom SILLY level."""
+    logger.log(SILLY_LOG_LEVEL, message, *args, **kwargs)
 
 
 def init_logging(level: TJBotLogLevel = "info") -> None:
@@ -113,3 +132,6 @@ def set_log_level(level: TJBotLogLevel) -> None:
 
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
+
+
+_install_silly_log_level()

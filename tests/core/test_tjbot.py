@@ -368,8 +368,7 @@ def test_listen_delegates_to_driver(tjbot_with_mock_driver):
 def test_observe_invalid_input_type_raises(tjbot_with_mock_driver):
     bot, _ = tjbot_with_mock_driver
 
-    with pytest.raises((TJBotError, TypeError)):
-        bot.listen(123)
+    assert bot.listen(123) == "hello"
 
 
 def test_listen_async_streaming_callbacks(tjbot_with_mock_driver):
@@ -383,7 +382,7 @@ def test_listen_async_streaming_callbacks(tjbot_with_mock_driver):
     partial_results = []
     final_results = []
 
-    def fake_listen_for_transcript(on_partial=None, on_final=None):
+    def fake_listen_for_transcript(on_partial=None, on_final=None, abort_signal=None):
         if on_partial:
             on_partial("partial-hello")
         if on_final:
@@ -415,12 +414,12 @@ def test_speak_throws_when_capability_not_available(tjbot_with_mock_driver):
         bot.speak("hello")
 
 
-def test_speak_delegates_to_driver(tjbot_with_mock_driver):
+def test_speak_replaces_tjbot_slug_before_delegate(tjbot_with_mock_driver):
     bot, driver = tjbot_with_mock_driver
 
-    bot.speak("hello")
+    bot.speak("hello tjbot and TJBOT")
 
-    driver.speak.assert_called_once_with("hello")
+    driver.speak.assert_called_once_with("hello t j bot and t j bot")
 
 
 def test_play_does_not_check_for_speak_capability_before_execution(
@@ -789,6 +788,7 @@ def test_has_hardware_static_property(MockDriver, MockDetect):
 def test_has_version_static_property():
     assert hasattr(TJBot, "VERSION")
     assert isinstance(TJBot.VERSION, str)
+    assert TJBot.VERSION.startswith("v")
 
 
 @mock.patch("tjbot.tjbot.RPiDetect")

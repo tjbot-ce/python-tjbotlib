@@ -24,6 +24,7 @@ from ..stt_utils import (
 from ...config.config_types import STTBackendIBMWatsonConfig
 from ...utils.errors import TJBotError
 from ...utils.credentials import load_ibm_watson_cloud_credentials
+from ...utils.logging import log_silly
 
 try:
     from ibm_watson import SpeechToTextV1
@@ -171,6 +172,17 @@ class IBMWatsonSTTEngine(STTEngine):
         # content_type: audio/l16; rate=...; channels=...
         # We assume standard 16khz 1channel pcm from microphone usually, but should be configurable.
         content_type = f"audio/l16; rate={self.microphone_rate}; channels={self.microphone_channels}"
+        log_silly(
+            logger,
+            "IBM Watson STT params: %s",
+            {
+                "model": model,
+                "inactivity_timeout": inactivity_timeout,
+                "background_audio_suppression": background_audio_suppression,
+                "interim_results": interim_results,
+                "content_type": content_type,
+            },
+        )
 
         try:
             watson_audio = AudioSource(_IterableAudioSourceStream(audio_stream))

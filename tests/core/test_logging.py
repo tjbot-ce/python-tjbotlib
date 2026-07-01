@@ -14,7 +14,13 @@
 
 import logging
 
-from tjbot.utils.logging import TJBotLogFormatter, init_logging, set_log_level
+from tjbot.utils.logging import (
+    SILLY_LOG_LEVEL,
+    TJBotLogFormatter,
+    get_logger,
+    init_logging,
+    set_log_level,
+)
 
 
 def test_init_logging_maps_debug_level() -> None:
@@ -29,6 +35,29 @@ def test_set_log_level_maps_warn_level() -> None:
     logger = logging.getLogger("tjbot")
 
     assert logger.level == logging.WARNING
+
+
+def test_set_log_level_maps_silly_level() -> None:
+    set_log_level("silly")
+    logger = logging.getLogger("tjbot")
+
+    assert logger.level == SILLY_LOG_LEVEL
+
+
+def test_debug_level_filters_out_silly() -> None:
+    init_logging("debug")
+    logger = get_logger("tjbot.microphone.microphone")
+
+    assert logger.isEnabledFor(logging.DEBUG)
+    assert not logger.isEnabledFor(SILLY_LOG_LEVEL)
+
+
+def test_silly_level_includes_debug_and_silly() -> None:
+    init_logging("silly")
+    logger = get_logger("tjbot.microphone.microphone")
+
+    assert logger.isEnabledFor(logging.DEBUG)
+    assert logger.isEnabledFor(SILLY_LOG_LEVEL)
 
 
 def test_formatter_adds_module_emoji_prefix() -> None:
